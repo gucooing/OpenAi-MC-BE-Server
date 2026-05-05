@@ -68,7 +68,7 @@ func TestRunWaitsForShutdown(t *testing.T) {
 	}
 }
 
-func TestRunStartsRakNetListener(t *testing.T) {
+func TestRunStartsMCPEListener(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	dataPath := t.TempDir()
@@ -93,8 +93,8 @@ func TestRunStartsRakNetListener(t *testing.T) {
 	if err := RunContext(ctx, &stdout, &stderr, []string{"-data-path", dataPath}); err != nil {
 		t.Fatalf("RunContext() returned error: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "raknet listener started") {
-		t.Fatalf("startup output %q does not contain RakNet listener message", stdout.String())
+	if !strings.Contains(stdout.String(), "mcpe listener started") {
+		t.Fatalf("startup output %q does not contain MCPE listener message", stdout.String())
 	}
 }
 

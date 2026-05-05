@@ -67,6 +67,58 @@ func TestBatchRoundTripUsesGophertunnelCompression(t *testing.T) {
 	}
 }
 
+func TestEncryptedBatchRoundTripKeepsCipherState(t *testing.T) {
+	serverCodec := NewCodec()
+	clientCodec := NewCodec()
+	key := [32]byte{0x42, 0x31, 0x20, 0x10}
+	serverCodec.EnableEncryption(key)
+	clientCodec.EnableEncryption(key)
+
+	first := [][]byte{{0x01, 0x02, 0x03}}
+	second := [][]byte{bytes.Repeat([]byte{0x7f}, 512)}
+
+	firstBatch, err := serverCodec.EncodeBatch(first)
+	if err != nil {
+		t.Fatalf("EncodeBatch(first) returned error: %v", err)
+	}
+	gotFirst, err := clientCodec.DecodeBatch(firstBatch)
+	if err != nil {
+		t.Fatalf("DecodeBatch(first) returned error: %v", err)
+	}
+	if len(gotFirst) != 1 || !bytes.Equal(gotFirst[0], first[0]) {
+		t.Fatalf("first decoded batch = %v, want %v", gotFirst, first)
+	}
+
+	secondBatch, err := serverCodec.EncodeBatch(second)
+	if err != nil {
+		t.Fatalf("EncodeBatch(second) returned error: %v", err)
+	}
+	gotSecond, err := clientCodec.DecodeBatch(secondBatch)
+	if err != nil {
+		t.Fatalf("DecodeBatch(second) returned error: %v", err)
+	}
+	if len(gotSecond) != 1 || !bytes.Equal(gotSecond[0], second[0]) {
+		t.Fatalf("second decoded batch = %v, want %v", gotSecond, second)
+	}
+}
+
+func TestEncryptedBatchRejectsBadChecksum(t *testing.T) {
+	serverCodec := NewCodec()
+	clientCodec := NewCodec()
+	key := [32]byte{0x9a, 0x01, 0x02}
+	serverCodec.EnableEncryption(key)
+	clientCodec.EnableEncryption(key)
+
+	batch, err := serverCodec.EncodeBatch([][]byte{{0x01, 0x02, 0x03}})
+	if err != nil {
+		t.Fatalf("EncodeBatch() returned error: %v", err)
+	}
+	batch[len(batch)-1] ^= 0xff
+	if _, err := clientCodec.DecodeBatch(batch); err == nil {
+		t.Fatalf("DecodeBatch() error = nil, want checksum error")
+	}
+}
+
 func TestDecodePacketRejectsUnknownID(t *testing.T) {
 	buffer := bytes.NewBuffer(nil)
 	if err := (&packet.Header{PacketID: 999}).Write(buffer); err != nil {
