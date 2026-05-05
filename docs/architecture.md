@@ -5,24 +5,27 @@
 - `cmd/bds`: entrypoint.
 - `internal/bootstrap`: flags, config, logging, shutdown, listener startup.
 - `internal/network/raknet`: RakNet transport adapter only.
-- `internal/network/mcpe`: server-owned MCPE session state machine.
-- `internal/protocol`: packet codec, batch compression/encryption, login parsing, handshake key derivation and packet dispatch primitives.
+- `internal/network/mcpe`: MCPE listener and connection adapter: RakNet session wiring, packet batch read/write, compression and encryption.
+- `internal/server`: server-owned MCPE login parsing, encryption handshake, resource-pack/spawn/world/player-sync session logic and packet routing.
 - `internal/world`: world-facing chunk provider and the default flat-world generator.
 - `internal/config`: `server.properties` loading.
 
 ## Rules
 
-- `gophertunnel` may provide packet structs, packet pools, login-chain parsing and compression/JWT helper types.
-- Server behaviour stays local: login state, resource-pack flow, StartGame, player lifecycle, world sync and gameplay packets are not delegated to `minecraft.Listener` or `minecraft.Conn`.
+- `gophertunnel` may provide packet structs, packet pools, packet field encode/decode, compression and login-chain/JWT helper types.
+- Server behaviour stays local in `internal/server`: login state, resource-pack flow, StartGame, player lifecycle, world sync and gameplay packets are not delegated to `minecraft.Listener` or `minecraft.Conn`.
+- Do not keep a local `internal/protocol` package while packet definitions are provided by gophertunnel; put MCPE wire concerns in `internal/network/mcpe` and login/session concerns in `internal/server`.
 - Keep RakNet details behind `internal/network/raknet`.
 - Log packet flow at `debug` level only.
 - Do not log raw login secrets or JWT payloads.
 
 ## Flow
 
-1. Bootstrap starts `internal/network/mcpe` on the configured RakNet address.
-2. `internal/network/mcpe` configures MOTD/pong data and accepts sessions through `internal/network/raknet`.
-3. Each MCPE session decodes batches with `internal/protocol`, advances the local login/encryption/resource-pack/spawn state machine, and writes packets back through RakNet.
-4. `internal/world` provides spawn data and generated chunks through a replaceable `ChunkProvider`.
-5. `internal/network/mcpe` adapts world chunks to `NetworkChunkPublisherUpdate` and `LevelChunk` packets.
-6. Bootstrap controls shutdown and listener lifetime.
+1. Bootstrap builds the `internal/server` MCPE handler from config.
+2. Bootstrap starts `internal/network/mcpe` on the configured RakNet address with a server-provided client factory.
+3. `internal/network/mcpe` configures MOTD/pong data and accepts sessions through `internal/network/raknet`.
+4. Each MCPE network session decodes batches through its local codec and passes gophertunnel packet structs to the `internal/server` MCPE client session.
+5. `internal/world` provides spawn data and generated chunks through a replaceable `ChunkProvider`.
+6. `internal/server` adapts world chunks to `NetworkChunkPublisherUpdate`, `SetTime`, `SetSpawnPosition`, `LevelChunk` and `SubChunk` packets, then writes them through the network connection interface.
+7. `internal/server` owns local player list/spawn/movement state and writes `PlayerList`, `AddPlayer`, `MovePlayer`, `SetActorData` and `SetActorMotion` directly through the network connection interface.
+8. Bootstrap controls shutdown and listener lifetime.

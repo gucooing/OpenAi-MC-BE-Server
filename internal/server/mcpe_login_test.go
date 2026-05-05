@@ -1,9 +1,6 @@
-package protocol
+package server
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	cryptorand "crypto/rand"
 	"encoding/base64"
 	"testing"
 
@@ -13,18 +10,15 @@ import (
 )
 
 func TestParseLoginPacketUsesGophertunnelLoginParser(t *testing.T) {
-	key, err := ecdsa.GenerateKey(elliptic.P384(), cryptorand.Reader)
-	if err != nil {
-		t.Fatalf("GenerateKey() returned error: %v", err)
-	}
+	key := testP384Key(t)
 
-	identity := IdentityData{
+	identity := gtlogin.IdentityData{
 		Identity:    "7b2d9639-5a8c-4f2f-9d8d-4d9f1e6e1f7a",
 		DisplayName: "TestPlayer",
 	}
-	client := ClientData{
+	client := gtlogin.ClientData{
 		DeviceOS:          gtprotocol.DeviceWin10,
-		GameVersion:       CurrentVersion,
+		GameVersion:       gtprotocol.CurrentVersion,
 		LanguageCode:      "en_US",
 		SelfSignedID:      "01f4ce7b-26a1-4a8b-8bbf-c067b49d0d4e",
 		ServerAddress:     "127.0.0.1:19132",
@@ -36,12 +30,12 @@ func TestParseLoginPacketUsesGophertunnelLoginParser(t *testing.T) {
 	}
 
 	pk := &packet.Login{
-		ClientProtocol:    CurrentProtocol,
+		ClientProtocol:    gtprotocol.CurrentProtocol,
 		ConnectionRequest: gtlogin.EncodeOffline(identity, client, key, true),
 	}
-	data, err := ParseLoginPacket(pk)
+	data, err := parseLoginPacket(pk)
 	if err != nil {
-		t.Fatalf("ParseLoginPacket() returned error: %v", err)
+		t.Fatalf("parseLoginPacket() returned error: %v", err)
 	}
 	if data.Identity.Identity != identity.Identity || data.Identity.DisplayName != identity.DisplayName {
 		t.Fatalf("Identity = %+v, want %+v", data.Identity, identity)
@@ -58,15 +52,15 @@ func TestParseLoginPacketUsesGophertunnelLoginParser(t *testing.T) {
 }
 
 func TestParseLoginPacketRejectsInvalidRequest(t *testing.T) {
-	_, err := ParseLoginPacket(&packet.Login{ConnectionRequest: []byte{0x01, 0x02}})
+	_, err := parseLoginPacket(&packet.Login{ConnectionRequest: []byte{0x01, 0x02}})
 	if err == nil {
-		t.Fatalf("ParseLoginPacket() error = nil, want invalid request error")
+		t.Fatalf("parseLoginPacket() error = nil, want invalid request error")
 	}
 }
 
 func TestParseLoginPacketRejectsNilPacket(t *testing.T) {
-	_, err := ParseLoginPacket(nil)
+	_, err := parseLoginPacket(nil)
 	if err == nil {
-		t.Fatalf("ParseLoginPacket(nil) error = nil, want error")
+		t.Fatalf("parseLoginPacket(nil) error = nil, want error")
 	}
 }

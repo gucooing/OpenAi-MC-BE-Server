@@ -12,6 +12,7 @@ import (
 	"gucooing/bds/internal/config"
 	"gucooing/bds/internal/logging"
 	networkmcpe "gucooing/bds/internal/network/mcpe"
+	appserver "gucooing/bds/internal/server"
 )
 
 type Options struct {
@@ -78,8 +79,7 @@ func RunContext(ctx context.Context, stdout, stderr io.Writer, args []string) er
 	}
 
 	listenAddress := net.JoinHostPort(serverConfig.Address, strconv.Itoa(serverConfig.Port))
-	mcpeServer, err := networkmcpe.Listen(networkmcpe.Options{
-		Address:      listenAddress,
+	mcpeHandler, err := appserver.NewMCPEHandler(appserver.MCPEOptions{
 		ServerName:   serverConfig.ServerName,
 		ServerBrand:  Name,
 		GameMode:     serverConfig.GameMode,
@@ -87,6 +87,20 @@ func RunContext(ctx context.Context, stdout, stderr io.Writer, args []string) er
 		ViewDistance: serverConfig.ViewDistance,
 		OnlineMode:   serverConfig.OnlineMode,
 		Logger:       logger.Logger,
+	})
+	if err != nil {
+		return err
+	}
+	mcpeServer, err := networkmcpe.Listen(networkmcpe.Options{
+		Address:     listenAddress,
+		ServerName:  serverConfig.ServerName,
+		ServerBrand: Name,
+		GameMode:    serverConfig.GameMode,
+		MaxPlayers:  serverConfig.MaxPlayers,
+		Logger:      logger.Logger,
+		NewClient: func(conn networkmcpe.PacketConn) networkmcpe.PacketClient {
+			return appserver.NewMCPEClient(mcpeHandler, conn)
+		},
 	})
 	if err != nil {
 		return err

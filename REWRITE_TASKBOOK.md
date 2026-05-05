@@ -1,6 +1,6 @@
-# BetterAltay Go 重写任务书
+# 参考 BetterAltay 用 Go 重写任务书
 
-> 本文件是 BetterAltay 使用 Go 完整重写的长期任务台账。后续任何新对话开始前，应先阅读本文件，优先处理 `DOING`、`BLOCKED`、`NEEDS-SUPPLEMENT` 和最高优先级 `TODO` 任务，并在完成后更新状态、完成情况、备注和变更记录。
+> 本文件是参考 BetterAltay 使用 Go 完整重写的长期任务台账。后续任何新对话开始前，应先阅读本文件，优先处理 `DOING`、`BLOCKED`、`NEEDS-SUPPLEMENT` 和最高优先级 `TODO` 任务，并在完成后更新状态、完成情况、备注和变更记录。
 
 ## 0. 当前基线
 
@@ -77,8 +77,8 @@
 |---|---|---|---|---|---|---|
 | M0 | 项目骨架可编译 | `go test ./...` 通过，`cmd/bds` 可启动并打印版本 | DONE | 已建立 `cmd/bds`、`internal/bootstrap`、版本信息和基础测试 | `go test ./...` 通过；`go run ./cmd/bds -version` 可输出版本 | 否 |
 | M1 | RakNet ping 可见 | Bedrock 客户端局域网列表能看到 MOTD 或用测试工具获得 ping pong | DONE | 已接入 `go-raknet`，服务端可响应 BetterAltay 风格 `MCPE;...;` pong 数据，本地测试工具可获得 ping pong | 已通过 `internal/network/raknet` 适配层隔离第三方库；尚未用真实 Bedrock 客户端手工验证局域网列表 | 否 |
-| M2 | 登录握手闭环 | 客户端能连接到服务器并进入资源包/StartGame 流程 | DOING | 已撤回 gophertunnel `minecraft.Listener` 托管完成结论；当前 `internal/network/mcpe` 使用本地 RakNet 会话和自有 MCPE 状态机处理 NetworkSettings、离线 Login 解析、本地 ServerToClientHandshake/ClientToServerHandshake 加密握手、空资源包栈和 StartGame 包发送 | 真实 Bedrock 客户端登录、在线认证和完整 Spawn 流程仍需验收 | 需补充真实客户端验收 |
-| M3 | 单人平坦世界可进入 | 客户端能出生在固定世界，能看到区块并移动 | DOING | 已新增 `internal/world` 可替换 `ChunkProvider` 和默认平坦世界生成器；区块可编码为 `LevelChunk` 并由测试解码验证出生区块草地方块 | 需要接在自有登录/加密/Spawn 流程之后用真实客户端验收可见性和移动手感 | 需补充真实客户端验收 |
+| M2 | 登录握手闭环 | 客户端能连接到服务器并进入资源包/StartGame 流程 | DOING | 已撤回 gophertunnel `minecraft.Listener` 托管完成结论；当前 `internal/network/mcpe` 只负责 RakNet/MCPE batch 连接适配，bootstrap 注入 `internal/server` client factory，由 `internal/server` 自有 MCPE 会话处理 NetworkSettings、离线 Login 解析、本地 ServerToClientHandshake/ClientToServerHandshake 加密握手、空资源包栈和 StartGame 包发送 | 真实 Bedrock 客户端登录、在线认证和完整 Spawn 流程仍需验收 | 需补充真实客户端验收 |
+| M3 | 单人平坦世界可进入 | 客户端能出生在固定世界，能看到区块并移动 | DOING | 已新增 `internal/world` 可替换 `ChunkProvider` 和默认平坦世界生成器；`internal/server` 可在请求视距后发送 SetTime、SetSpawnPosition、NetworkChunkPublisherUpdate、LevelChunk 并响应 SubChunkRequest；测试可解码验证出生区块草地方块 | 真实客户端已能触发 StartGame 和初始区块发送；可见性、移动手感和玩家输入处理仍需后续验收/实现 | 需补充真实客户端验收 |
 | M4 | 基础玩法闭环 | 聊天、命令、放置/破坏基础方块、背包热栏可用 | TODO |  |  | 否 |
 | M5 | 持久化世界 | 可加载/保存至少一种世界格式，重启后方块变化保留 | TODO |  |  | 需确认目标格式 |
 | M6 | 多人稳定性 | 5-20 人测试，加入/离开/移动/聊天同步无明显崩溃 | TODO |  |  | 需准备测试方式 |
@@ -97,8 +97,7 @@ bds/
   internal/logging/        # 日志、终端颜色、文件日志
   internal/server/         # Server 核心、tick loop、玩家列表、生命周期
   internal/network/raknet/ # RakNet 或其适配层
-  internal/network/mcpe/   # MCPE 会话、压缩、加密、批处理
-  internal/protocol/       # 协议包定义、编解码、包池、生成器
+  internal/network/mcpe/   # MCPE 会话接入、压缩、加密、批处理
   internal/world/          # Level、Chunk、SubChunk、Provider、生成器
   internal/block/          # 方块状态、运行时 ID、碰撞箱、注册表
   internal/item/           # 物品、耐久、食物、附魔、注册表
@@ -130,7 +129,7 @@ bds/
 | DEC-006 | 授权与署名 | 项目保持 LGPL-3.0，保留 `LICENSE`/`NOTICE`，上游来源和第三方依赖在发行前登记 | DONE | 默认不为每个新 Go 文件加版权头；非平凡移植上游行为、数据表或算法时在局部源码或文档加来源说明 | 否 |
 | DEC-007 | 最小可玩目标 | 单人平坦世界 + 移动 + 聊天 + 基础方块交互 | TODO | 作为 M3/M4 的范围边界 | 否 |
 | DEC-008 | 初始配置格式 | `server.properties` | DONE | 先用于 Go 服务端常规配置；PocketMine YAML 兼容后续作为迁移/兼容 Provider 处理 | 否 |
-| DEC-009 | 协议与登录实现策略 | `gophertunnel` 只用于 packet 定义、packet pool、batch 压缩和登录链解析；MCPE 会话状态、登录流程、资源包、StartGame、世界同步和玩法逻辑由本项目实现 | DONE | 用户明确要求不能把实际逻辑交给 gophertunnel；保留 `go-raknet` 作为 RakNet 传输库，保留本地边界 | 否 |
+| DEC-009 | 协议与登录实现策略 | `gophertunnel` 直接用于 packet 定义、packet pool、字段编解码、batch 压缩和登录链解析；本项目不保留空转 `internal/protocol` 包，MCPE batch/encryption 放在 `internal/network/mcpe`，登录解析/握手/路由和业务流程放在 `internal/server` | DONE | 用户明确要求不能把实际逻辑交给 gophertunnel，也不能建立无意义协议包装层；保留 `go-raknet` 作为 RakNet 传输库，保留本地边界 | 否 |
 
 ## 5. 优先级规则
 
@@ -178,10 +177,10 @@ bds/
 | C-002 | 实现或接入 UDP 监听 | P0 | DONE | 绑定端口，处理启动失败 | 已新增 `internal/network/raknet` 低层适配，并在运行时通过 `internal/network/mcpe` 按 `server-address/server-port` 启动本地 MCPE 会话入口 | 默认 19132；`-check` 不启动网络监听 | 否 |
 | C-003 | 实现 RakNet ping/pong | P0 | DONE | 客户端列表可看到 MOTD | 已实现 BetterAltay 风格 pong 数据并用 `raknet.PingTimeout` 本地验证 | M1 已可由测试工具验收；真实 Bedrock 客户端列表待手工补测 | 否 |
 | C-004 | 实现 RakNet session 生命周期 | P0 | DONE | 连接、断开、超时、MTU、可靠包 | 已为 `go-raknet` 会话增加可注入处理器、活跃连接跟踪和关闭等待；MTU/可靠传输由底层库负责 | 当前只做会话生命周期边界，MCPE 登录和包分发仍待实现 | 否 |
-| C-005 | 实现 MCPE batch/压缩层 | P0 | DONE | packet batch 编解码测试通过 | 已由 `internal/protocol/codec.go` 接入 gophertunnel 的 batch 压缩/解压 | 使用 `packet.DefaultCompression` 和 256 阈值 | 否 |
-| C-006 | 实现登录链解析 | P0 | DONE | LoginPacket JWT/skin/device 信息可解析 | 已由 `internal/protocol/login.go` 接入 gophertunnel 登录解析，并补充离线登录测试；运行时 `internal/network/mcpe` 可读取连接身份信息 | 在线认证仍需真实账号/客户端验收 | 否 |
+| C-005 | 实现 MCPE batch/压缩层 | P0 | DONE | packet batch 编解码测试通过 | 已由 `internal/network/mcpe/codec.go` 接入 gophertunnel 的 packet pool、字段编解码和 batch 压缩/解压 | 使用 `packet.DefaultCompression` 和 256 阈值 | 否 |
+| C-006 | 实现登录链解析 | P0 | DONE | LoginPacket JWT/skin/device 信息可解析 | 已由 `internal/server/mcpe_login.go` 接入 gophertunnel 登录解析，并补充离线登录测试；运行时由 `internal/server` 保存连接身份信息 | 在线认证仍需真实账号/客户端验收 | 否 |
 | C-007 | 实现加密握手 | P1 | REVIEW | 支持 ServerToClientHandshake/ClientToServerHandshake | 已在本地 MCPE session 中实现 P-384 ECDH、ServerToClientHandshake JWT salt、batch AES-CTR 加密/校验和 ClientToServerHandshake 确认；测试覆盖本地虚拟客户端加密登录 | 尚未用真实 Bedrock 客户端验证；不能交给 `minecraft.Conn` | 否 |
-| C-008 | 实现包分发器 | P0 | DONE | 按 packet ID 路由到 handler | 已实现 `internal/protocol/dispatcher.go`，用 `packet.Packet` 和 `ID()` 路由 handler | 对标 `PacketPool`/`DataPacket` 的路由职责 | 否 |
+| C-008 | 实现包分发器 | P0 | DONE | 按 packet ID 路由到 handler | 已移除无意义 `internal/protocol` dispatcher；当前由 `internal/server/mcpe_router.go` 对 gophertunnel `packet.Packet` 做服务端会话路由 | 路由归属业务会话，协议包定义仍直接使用 gophertunnel | 否 |
 | C-009 | 建立协议 fuzz/边界测试 | P1 | TODO | 畸形包不导致崩溃 |  |  | 否 |
 | C-010 | 建立虚拟客户端测试工具 | P1 | TODO | 可自动 ping、握手、登录 smoke test | 已撤回基于 gophertunnel `minecraft.Dialer` 的完成结论；当前仅有本地 raw session 测试和 RakNet ping smoke test | 后续虚拟客户端也必须只使用 packet 编解码/打包能力，不使用 gophertunnel 托管连接逻辑 | 否 |
 
@@ -190,11 +189,11 @@ bds/
 | ID | 任务 | 优先级 | 状态 | 产出/验收 | 完成情况 | 备注 | 需补充 |
 |---|---|---|---|---|---|---|---|
 | D-001 | 抽取 `ProtocolInfo.php` 常量到 Go | P0 | TODO | Go 常量覆盖协议号与 packet ID |  | 可手工或生成 | 否 |
-| D-002 | 建立协议读写基础类型 | P0 | DONE | varint、zigzag、little endian、string、UUID 测试通过 | 已改为通过 `internal/protocol` 适配 gophertunnel 的 Reader/Writer、packet header 和 batch codec | 遵循 `DEC-009`，不保留自写二进制流实现 | 否 |
-| D-003 | 建立 Packet interface | P0 | DONE | `ID()`、`Marshal`、`Unmarshal` 或等价接口 | 已直接复用 `gophertunnel` 的 `packet.Packet` 接口，并在 local adapter 中透出 | 与 packet pool、codec 和 dispatcher 一起使用 | 否 |
-| D-004 | 实现登录阶段核心包 | P0 | REVIEW | Login、PlayStatus、Handshake、Disconnect、ResourcePack、StartGame | 本地 MCPE session 已处理 NetworkSettings、Login 解析、本地加密 Handshake、PlayStatus、空 ResourcePack 和 StartGame 包构造 | packet 定义/编解码可复用 gophertunnel，流程逻辑必须本地实现；真实客户端验收仍属 M2 风险 | 否 |
-| D-005 | 实现世界同步核心包 | P0 | TODO | LevelChunk、SubChunk、UpdateBlock、SetTime、SetSpawnPosition |  | M3 必需 | 否 |
-| D-006 | 实现玩家同步核心包 | P0 | TODO | AddPlayer、MovePlayer、PlayerList、SetActorData、SetActorMotion |  | M3/M6 必需 | 否 |
+| D-002 | 建立协议读写基础类型 | P0 | DONE | varint、zigzag、little endian、string、UUID 测试通过 | 已直接使用 gophertunnel Reader/Writer 和 packet header；MCPE batch codec 位于 `internal/network/mcpe` | 遵循 `DEC-009`，不保留自写二进制流实现，也不保留空转 `internal/protocol` 包 | 否 |
+| D-003 | 建立 Packet interface | P0 | DONE | `ID()`、`Marshal`、`Unmarshal` 或等价接口 | 已直接复用 gophertunnel 的 `packet.Packet` 接口 | 不建立本仓库 Packet 别名/包装接口 | 否 |
+| D-004 | 实现登录阶段核心包 | P0 | REVIEW | Login、PlayStatus、Handshake、Disconnect、ResourcePack、StartGame | `internal/server` MCPE 会话已处理 NetworkSettings、Login 解析、本地加密 Handshake、PlayStatus、空 ResourcePack 和 StartGame 包构造；`internal/network/mcpe` 仅做连接适配 | packet 定义/编解码可复用 gophertunnel，流程逻辑必须本地实现；真实客户端验收仍属 M2 风险 | 否 |
+| D-005 | 实现世界同步核心包 | P0 | REVIEW | LevelChunk、SubChunk、UpdateBlock、SetTime、SetSpawnPosition | 已在 `internal/server` 接入 RequestChunkRadius/SubChunkRequest；初始世界同步发送 SetTime、SetSpawnPosition、NetworkChunkPublisherUpdate 和 LevelChunk；补充 SubChunk 响应与 UpdateBlock 包构造测试 | packet 定义/编解码复用 gophertunnel；Interact 等玩法包仍留给后续 M4 路由真实实现 | 需补充真实客户端可见性验收 |
+| D-006 | 实现玩家同步核心包 | P0 | REVIEW | AddPlayer、MovePlayer、PlayerList、SetActorData、SetActorMotion | 已在 `internal/server` 新增本地玩家列表和玩家状态；StartGame 后发送 PlayerList/SetActorData/SetActorMotion，SetLocalPlayerAsInitialised 后向已生成玩家互发 AddPlayer/SetActorData/SetActorMotion；接入 PlayerAuthInput 与 MovePlayer 路由并广播 MovePlayer/SetActorData/SetActorMotion | 参考 BetterAltay 的 PlayerList、AddPlayer 和 MovePlayer 流程；碰撞、反作弊、离线移除和多人压测留给后续 E/J/M6 | 需补充真实客户端多人验收 |
 | D-007 | 实现聊天与命令包 | P1 | TODO | Text、CommandRequest、AvailableCommands、CommandOutput |  | M4 必需 | 否 |
 | D-008 | 实现背包与物品核心包 | P1 | TODO | InventoryContent、InventorySlot、MobEquipment、ItemStackRequest/Response |  | M4 必需 | 否 |
 | D-009 | 实现资源包包组 | P1 | TODO | ResourcePackInfo/Stack/ChunkData/ChunkRequest |  | 可先空资源包 | 否 |
@@ -236,7 +235,7 @@ bds/
 | G-005 | 实现 Chunk/SubChunk 数据结构 | P0 | REVIEW | 坐标、区块状态、方块读写测试通过 | 已新增 `internal/world.Chunk` 和 `ChunkProvider`，通过 Dragonfly chunk 数据结构保存方块和 biome | 需要后续补世界加载、保存和更多读写测试 | 否 |
 | G-006 | 实现方块 palette/runtime ID 映射 | P0 | REVIEW | 能编码客户端可识别区块 | 已通过 Dragonfly runtime registry 查询 air/bedrock/dirt/grass 等运行时 ID，并能编码网络区块 payload | 后续应迁到本项目 block registry/生成器，避免长期散落依赖 | 否 |
 | G-007 | 实现空世界/平坦世界生成器 | P0 | REVIEW | 客户端能看到地面 | 已新增默认平坦世界生成器，测试可解码出生区块 y=63 草地方块 | 真实客户端可见性仍依赖 M2 加密/Spawn 闭环 | 需补充真实客户端验收 |
-| G-008 | 实现区块发送调度 | P0 | DOING | 按玩家视距发送/卸载区块 | 已有初始视距内 chunk packet publisher，可生成 `NetworkChunkPublisherUpdate` 和 `LevelChunk` | 还缺动态视距、卸载、缓存和真实客户端验收 | 否 |
+| G-008 | 实现区块发送调度 | P0 | DOING | 按玩家视距发送/卸载区块 | 已有初始视距内 chunk packet publisher，可生成 `NetworkChunkPublisherUpdate`、`SetTime`、`SetSpawnPosition`、`LevelChunk`，并可响应 `SubChunkRequest` | 还缺动态视距、卸载、缓存和真实客户端可见性验收 | 否 |
 | G-009 | 实现区块保存 | P1 | TODO | 变更方块后重启仍存在 |  | M5 必需 | 否 |
 | G-010 | 实现实体/Tile 持久化挂钩 | P1 | TODO | Tile 和 Entity 可随区块保存 |  | 后续箱子/告示牌依赖 | 否 |
 | G-011 | 实现世界时间/天气/难度 | P2 | TODO | 协议同步、配置可控 |  |  | 否 |
@@ -371,12 +370,12 @@ bds/
 | 源模块 | 文件数 | Go 目标模块 | 状态 | 完成情况 | 备注 | 需补充 |
 |---|---:|---|---|---|---|---|
 | root constants/classes | 13 | `internal/bootstrap`、`internal/server` | TODO |  | Server、Player、PocketMine、VersionInfo 等 | 否 |
-| `network` | 382 | `internal/network`、`internal/protocol` | DOING | 已完成 RakNet 初始适配、UDP 监听、unconnected ping/pong、session 生命周期、packet/batch/login 解析适配、本地 MCPE session 初版和本地加密握手；已移除 gophertunnel `minecraft.Listener` 运行时路径和旧 debug session 路径 | 真实 Bedrock 客户端验收、多玩家稳定性和后续玩法包处理仍未完成 | 需补充真实客户端测试 |
+| `network` | 382 | `internal/network`、`internal/server` | DOING | 已完成 RakNet 初始适配、UDP 监听、unconnected ping/pong、session 生命周期、packet/batch codec、本地 MCPE session 初版、本地加密握手和玩家同步核心包路由；已移除 gophertunnel `minecraft.Listener` 运行时路径、旧 debug session 路径和空转 `internal/protocol` 包 | 真实 Bedrock 客户端验收、多玩家稳定性和后续玩法包处理仍未完成 | 需补充真实客户端测试 |
 | `block` | 208 | `internal/block` | TODO |  | 方块状态、碰撞、更新、掉落 | 需补充 runtime ID 映射 |
 | `item` | 174 | `internal/item` | TODO |  | 物品注册表、工具、食物、附魔 | 需补充物品映射 |
 | `level` | 144 | `internal/world` | DOING | 已建立可替换 `ChunkProvider`、默认平坦世界生成器、基础 Chunk 包装和区块网络编码测试 | 世界加载/保存、tick、动态区块调度和旧格式兼容仍未实现 | 需确认存储格式 |
 | `event` | 127 | `internal/event` | TODO |  | 事件总线和核心事件 | 否 |
-| `entity` | 119 | `internal/entity` | TODO |  | 玩家、移动、伤害、生物 | 否 |
+| `entity` | 119 | `internal/entity`、`internal/server` | DOING | 已在 `internal/server` 建立 MCPE 玩家同步状态和 AddPlayer/MovePlayer/PlayerList/SetActorData/SetActorMotion 发包；完整 Entity/Player 领域模块仍未抽取 | 玩家、移动、伤害、生物 | 否 |
 | `command` | 65 | `internal/command` | TODO |  | 命令系统和默认命令 | 否 |
 | `lang` | 46 | `internal/lang` | TODO |  | locale ini、文本容器 | 否 |
 | `inventory` | 44 | `internal/inventory` | TODO |  | 背包、窗口、交易、合成 | 需补充协议测试 |
@@ -399,15 +398,15 @@ bds/
 | 功能 | MVP | 完整目标 | 状态 | 备注 | 需补充 |
 |---|---|---|---|---|---|
 | 客户端 ping | 必须 | MOTD、人数、协议、世界名完整 | DONE | M1；本地 RakNet ping 测试通过，真实客户端列表待手工补测 | 否 |
-| 登录 | 必须 | 在线/离线验证、皮肤、设备信息、封禁检查 | DOING | M2；本地 MCPE session 已能解析离线 Login、完成本地加密握手、发送 PlayStatus、空资源包栈和 StartGame 包 | 需真实客户端和在线认证验收 |
-| 世界 | 平坦世界 | 读取/保存兼容世界、多个世界、生成器 | TODO | M3/M5 | 需确认格式 |
-| 区块 | 固定视距发送 | 动态视距、缓存、压缩优化 | TODO | M3 | 否 |
-| 移动 | 单人不回弹 | 多人同步、碰撞、反作弊基础 | TODO | M3/M6 | 否 |
+| 登录 | 必须 | 在线/离线验证、皮肤、设备信息、封禁检查 | DOING | M2；`internal/server` MCPE 会话已能解析离线 Login、完成本地加密握手、发送 PlayStatus、空资源包栈和 StartGame 包 | 需真实客户端和在线认证验收 |
+| 世界 | 平坦世界 | 读取/保存兼容世界、多个世界、生成器 | DOING | M3/M5；已具备默认平坦世界、出生点和世界时间/出生点同步包 | 需确认持久化格式 |
+| 区块 | 固定视距发送 | 动态视距、缓存、压缩优化 | DOING | M3；已覆盖初始 LevelChunk、SubChunk 响应和 UpdateBlock 包构造 | 需真实客户端可见性验收 |
+| 移动 | 单人不回弹 | 多人同步、碰撞、反作弊基础 | DOING | M3/M6；已接入 PlayerAuthInput 与 MovePlayer，能记录玩家位置/旋转并向已生成玩家广播 MovePlayer、SetActorData、SetActorMotion | 需真实客户端移动手感、碰撞和多人压测 |
 | 聊天 | 必须 | 格式化、权限、事件、日志 | TODO | M4 | 否 |
 | 命令 | stop/list/say | PMMP 常用命令、参数提示 | TODO | M4 | 否 |
 | 方块交互 | 基础破坏/放置 | 掉落、更新、流体、红石、Tile | TODO | M4+ | 否 |
 | 背包 | 热栏和基础物品 | 容器、合成、附魔、耐久 | TODO | M4+ | 需协议测试 |
-| 实体 | Player/Item | 生物、AI、投射物、载具 | TODO | M6+ | 否 |
+| 实体 | Player/Item | 生物、AI、投射物、载具 | DOING | M6+；已完成玩家同步核心包，完整实体系统仍未抽取 | 否 |
 | 插件 | 可延后 | Go API 或其他扩展策略 | NEEDS-SUPPLEMENT | M7 | 待用户确认 |
 | 资源包 | 空栈 | 完整发送、校验、分块 | TODO | 可先最小实现 | 否 |
 | 表单 | 可延后 | Modal/Custom/Simple Form | TODO | 插件常用 | 否 |
@@ -443,6 +442,8 @@ bds/
 | 2026-05-05 | M2/C-007/C-010/D-004/O-003 | MCPE 登录与 StartGame 集成测试 | 撤回完成结论 | 先前证据基于 gophertunnel `minecraft.Listener`/`minecraft.Dialer` 托管流程 | 用户要求 gophertunnel 只做数据包解析/打包，因此 M2、C-007、C-010、D-004、O-003 已按需降级为 DOING/TODO |
 | 2026-05-05 | DEC-009/M2/D-004 | 自有 MCPE session smoke test | 通过 | `go test ./internal/network/mcpe -count=1 -v`；`go test ./internal/protocol -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖本地 RakNet ping、本地 MCPE session 的 NetworkSettings、离线 Login 解析、空资源包栈、StartGame 包发送和 LevelChunk 编码；真实客户端与加密握手仍未完成 |
 | 2026-05-06 | C-007/D-004/M2 | 本地 MCPE 加密握手 smoke test | 通过 | `go test ./internal/protocol -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 ServerToClientHandshake JWT salt、P-384 ECDH key 一致性、batch AES-CTR 加密/校验、加密 ClientToServerHandshake、加密后的 PlayStatus/ResourcePacksInfo 和 StartGame；真实 Bedrock 客户端仍待验收 |
+| 2026-05-06 | D-005/G-008/M3 | 世界同步核心包 smoke test | 通过 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 `internal/server` MCPE 路由和世界同步逻辑、`internal/network/mcpe` batch codec、RequestChunkRadius 后的 SetTime/SetSpawnPosition/NetworkChunkPublisherUpdate/LevelChunk 顺序、SubChunk 响应、UpdateBlock 包构造和 LevelChunk 解码；真实客户端可见性仍待验收 |
+| 2026-05-06 | D-006/M3/M6 | 玩家同步核心包 smoke test | 通过 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 PlayerList 自身/全量同步、AddPlayer 同步到双方、SetActorData、SetActorMotion、PlayerAuthInput 位置/旋转/冲刺元数据广播和 legacy MovePlayer 广播；真实 Bedrock 客户端多人验收仍待补充 |
 
 ## 11. 后续对话交接模板
 
@@ -465,13 +466,13 @@ bds/
 | 字段 | 内容 |
 |---|---|
 | 当前阶段 | 阶段 C/D：本地 MCPE session 与协议核心流程 |
-| 本次完成 | 实现本地 ServerToClientHandshake/ClientToServerHandshake 加密握手：`internal/protocol` 支持 batch 加密/校验与握手 key 推导，`internal/network/mcpe` 在 Login 后启用本地加密并继续资源包/StartGame 流程；架构/协议文档已更新 |
-| 仍在进行 | M2 登录握手闭环的真实客户端验收、M3 世界进入与玩家同步 |
+| 本次完成 | D-006 玩家同步核心包：参考 BetterAltay 的 PlayerList/AddPlayer/MovePlayer 流程，在 `internal/server` 建立本地玩家状态和玩家列表；StartGame 后发送 PlayerList/SetActorData/SetActorMotion，SetLocalPlayerAsInitialised 后对已生成玩家互发 AddPlayer/SetActorData/SetActorMotion，并接入 PlayerAuthInput/MovePlayer 路由广播 |
+| 仍在进行 | M2 登录握手闭环的真实客户端验收、M3 世界可见性与移动手感验收、M6 多人压测 |
 | 阻塞项 | 真实 Bedrock 客户端验收、在线认证验收、插件兼容策略、世界存储格式、多人压测 |
 | 需要用户确认 | 是否必须兼容 PHP API3 插件；是否需要读取旧 BetterAltay 世界和玩家数据 |
-| 建议下一步 | 用真实 Bedrock 1.26.10/protocol 944 客户端验证登录到资源包/StartGame 流程，并根据客户端断开原因补齐缺失的 spawn/player/chunk 包 |
-| 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`go.sum`、`scripts/test.ps1`、`LICENSE`、`NOTICE`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/config/config.go`、`internal/network/mcpe/*`、`internal/network/raknet/*`、`internal/protocol/*`、`docs/architecture.md`、`docs/protocol.md`、`docs/license-notice.md`、`docs/network-raknet.md` |
-| 已运行验证 | `go test ./internal/protocol -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` |
+| 建议下一步 | 继续 D-007 聊天与命令包，或先用 Bedrock 1.26.10/protocol 944 客户端验收登录、世界可见性、移动和双人互相可见；Interact/方块交互仍留给 M4 |
+| 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`go.sum`、`scripts/test.ps1`、`LICENSE`、`NOTICE`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/config/config.go`、`internal/server/*`、`internal/network/mcpe/*`、`internal/network/raknet/*`、`docs/architecture.md`、`docs/protocol.md`、`docs/license-notice.md`、`docs/network-raknet.md` |
+| 已运行验证 | `go test ./internal/server -count=1 -v`；`go test ./... -count=1`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` |
 | 未运行验证 | 尚未进行真实 Bedrock 客户端局域网列表、登录连接和多人压测；`go test -race` 因当前环境缺少 `gcc` 未运行 |
 
 ## 12. 变更记录
@@ -489,3 +490,6 @@ bds/
 | 2026-05-05 | Codex | 历史记录：曾新增 gophertunnel Minecraft listener 路线并用虚拟客户端验证登录/StartGame；该完成结论已在后续按用户要求撤回 | M2、C-002、C-007、C-010、D-004、O-003 | 不再作为当前完成状态依据 |
 | 2026-05-05 | Codex | 按用户要求撤回 gophertunnel 托管运行时路线：删除 `internal/protocol/session.go` debug 会话，`internal/network/mcpe` 改为自有 MCPE session，gophertunnel 仅保留 packet/batch/login 解析打包用途 | DEC-009、M2、C-007、C-010、D-004、O-003 | `go test ./...` 和 `scripts/test.ps1 -RunCheck` 通过；加密握手和真实客户端验收仍待做 |
 | 2026-05-06 | Codex | 实现本地 MCPE 加密握手：新增 batch AES-CTR 加密/校验、ServerToClientHandshake JWT salt 生成、P-384 ECDH key 推导和 ClientToServerHandshake 状态推进 | C-007、D-004、M2 | `go test ./internal/protocol -count=1 -v`、`go test ./internal/network/mcpe -count=1 -v`、`go test ./...`、`scripts/test.ps1 -RunCheck` 通过；真实 Bedrock 客户端验收仍待做 |
+| 2026-05-06 | Codex | 实现 D-005 世界同步核心包并整理目录边界：`internal/network/mcpe` 仅保留 MCPE 连接适配，bootstrap 负责注入 `internal/server` client factory；初始同步发送 SetTime/SetSpawnPosition/LevelChunk，支持 SubChunkRequest 响应和 UpdateBlock 包构造 | D-005、G-008、M3 | `go test ./internal/server -count=1 -v`、`go test ./internal/network/mcpe -count=1 -v`、`go test ./...`、`scripts/test.ps1 -RunCheck` 通过；玩家输入/交互包未做空处理，留给 D-006/M4 |
+| 2026-05-06 | Codex | 移除空转 `internal/protocol` 包：MCPE batch codec/encryption 移入 `internal/network/mcpe`，Login 解析和 ServerToClientHandshake key/JWT 移入 `internal/server`，packet 路由改为 server 会话本地路由，所有包类型直接使用 gophertunnel `packet.Packet` | DEC-009、C-005、C-006、C-008、D-002、D-003 | `go test ./internal/network/mcpe ./internal/server -count=1 -v`、`go test ./...`、`scripts/test.ps1 -RunCheck` 通过 |
+| 2026-05-06 | Codex | 实现 D-006 玩家同步核心包：新增本地玩家状态/列表、PlayerList 全量与增量同步、AddPlayer 双向生成、SetActorData/SetActorMotion 初始化与广播，并处理 PlayerAuthInput/MovePlayer 输入广播 | D-006、M3、M6 | `go test ./internal/server -count=1 -v`、`go test ./... -count=1`、`go test ./internal/network/mcpe -count=1 -v`、`go test ./...`、`scripts/test.ps1 -RunCheck` 通过；真实 Bedrock 客户端多人验收仍待做 |

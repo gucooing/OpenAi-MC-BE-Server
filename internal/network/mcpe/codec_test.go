@@ -1,4 +1,4 @@
-package protocol
+package mcpe
 
 import (
 	"bytes"
@@ -9,19 +9,16 @@ import (
 )
 
 func TestCodecUsesGophertunnelProtocolBaseline(t *testing.T) {
-	if CurrentProtocol != 944 {
-		t.Fatalf("CurrentProtocol = %d, want 944", CurrentProtocol)
+	if gtprotocol.CurrentProtocol != 944 {
+		t.Fatalf("CurrentProtocol = %d, want 944", gtprotocol.CurrentProtocol)
 	}
-	if CurrentVersion != "1.26.10" {
-		t.Fatalf("CurrentVersion = %q, want 1.26.10", CurrentVersion)
-	}
-	if CurrentProtocol != gtprotocol.CurrentProtocol {
-		t.Fatalf("CurrentProtocol = %d, gophertunnel = %d", CurrentProtocol, gtprotocol.CurrentProtocol)
+	if gtprotocol.CurrentVersion != "1.26.10" {
+		t.Fatalf("CurrentVersion = %q, want 1.26.10", gtprotocol.CurrentVersion)
 	}
 }
 
 func TestPacketRoundTripNetworkSettings(t *testing.T) {
-	codec := NewCodec()
+	codec := newCodec()
 	source := &packet.NetworkSettings{
 		CompressionThreshold: 256,
 		CompressionAlgorithm: packet.CompressionAlgorithmFlate,
@@ -34,7 +31,7 @@ func TestPacketRoundTripNetworkSettings(t *testing.T) {
 		t.Fatalf("EncodePacket() returned error: %v", err)
 	}
 
-	decoded, err := codec.DecodePacket(encoded, FromServer)
+	decoded, err := codec.DecodePacket(encoded, fromServer)
 	if err != nil {
 		t.Fatalf("DecodePacket() returned error: %v", err)
 	}
@@ -49,7 +46,7 @@ func TestPacketRoundTripNetworkSettings(t *testing.T) {
 }
 
 func TestBatchRoundTripUsesGophertunnelCompression(t *testing.T) {
-	codec := NewCodec()
+	codec := newCodec()
 	first := []byte{0x01, 0x02, 0x03}
 	second := bytes.Repeat([]byte{0x7f}, 512)
 
@@ -68,8 +65,8 @@ func TestBatchRoundTripUsesGophertunnelCompression(t *testing.T) {
 }
 
 func TestEncryptedBatchRoundTripKeepsCipherState(t *testing.T) {
-	serverCodec := NewCodec()
-	clientCodec := NewCodec()
+	serverCodec := newCodec()
+	clientCodec := newCodec()
 	key := [32]byte{0x42, 0x31, 0x20, 0x10}
 	serverCodec.EnableEncryption(key)
 	clientCodec.EnableEncryption(key)
@@ -103,8 +100,8 @@ func TestEncryptedBatchRoundTripKeepsCipherState(t *testing.T) {
 }
 
 func TestEncryptedBatchRejectsBadChecksum(t *testing.T) {
-	serverCodec := NewCodec()
-	clientCodec := NewCodec()
+	serverCodec := newCodec()
+	clientCodec := newCodec()
 	key := [32]byte{0x9a, 0x01, 0x02}
 	serverCodec.EnableEncryption(key)
 	clientCodec.EnableEncryption(key)
@@ -125,20 +122,20 @@ func TestDecodePacketRejectsUnknownID(t *testing.T) {
 		t.Fatalf("Header.Write() returned error: %v", err)
 	}
 
-	_, err := NewCodec().DecodePacket(buffer.Bytes(), FromClient)
+	_, err := newCodec().DecodePacket(buffer.Bytes(), fromClient)
 	if err == nil {
 		t.Fatalf("DecodePacket() error = nil, want unknown packet id error")
 	}
 }
 
 func TestDecodePacketConvertsReaderPanicToError(t *testing.T) {
-	codec := NewCodec()
+	codec := newCodec()
 	buffer := bytes.NewBuffer(nil)
 	if err := (&packet.Header{PacketID: packet.IDNetworkSettings}).Write(buffer); err != nil {
 		t.Fatalf("Header.Write() returned error: %v", err)
 	}
 
-	_, err := codec.DecodePacket(buffer.Bytes(), FromServer)
+	_, err := codec.DecodePacket(buffer.Bytes(), fromServer)
 	if err == nil {
 		t.Fatalf("DecodePacket() error = nil, want truncated payload error")
 	}

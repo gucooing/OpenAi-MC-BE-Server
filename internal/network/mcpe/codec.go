@@ -1,4 +1,4 @@
-package protocol
+package mcpe
 
 import (
 	"bytes"
@@ -13,26 +13,21 @@ import (
 )
 
 const (
-	CurrentProtocol = gtprotocol.CurrentProtocol
-	CurrentVersion  = gtprotocol.CurrentVersion
-
-	DefaultCompressionThreshold = 256
-	MaxDecompressedBatchBytes   = 2 * 1024 * 1024
+	defaultCompressionThreshold = 256
+	maxDecompressedBatchBytes   = 2 * 1024 * 1024
 
 	batchHeader       = 0xfe
 	maximumBatchItems = 812
 )
 
-type Packet = packet.Packet
-
-type Direction int
+type packetDirection int
 
 const (
-	FromClient Direction = iota
-	FromServer
+	fromClient packetDirection = iota
+	fromServer
 )
 
-type Codec struct {
+type codec struct {
 	Compression          packet.Compression
 	CompressionThreshold int
 	MaxDecompressedLen   int
@@ -43,22 +38,22 @@ type Codec struct {
 	serverPool           packet.Pool
 }
 
-func NewCodec() Codec {
-	return Codec{
+func newCodec() codec {
+	return codec{
 		Compression:          packet.DefaultCompression,
-		CompressionThreshold: DefaultCompressionThreshold,
-		MaxDecompressedLen:   MaxDecompressedBatchBytes,
+		CompressionThreshold: defaultCompressionThreshold,
+		MaxDecompressedLen:   maxDecompressedBatchBytes,
 		EnableLimits:         true,
 		clientPool:           packet.NewClientPool(),
 		serverPool:           packet.NewServerPool(),
 	}
 }
 
-func (codec *Codec) EnableEncryption(keyBytes [32]byte) {
+func (codec *codec) EnableEncryption(keyBytes [32]byte) {
 	codec.encryption = newBatchEncryption(keyBytes)
 }
 
-func (codec Codec) EncodePacket(pk Packet) (data []byte, err error) {
+func (codec codec) EncodePacket(pk packet.Packet) (data []byte, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			data = nil
@@ -74,7 +69,7 @@ func (codec Codec) EncodePacket(pk Packet) (data []byte, err error) {
 	return buffer.Bytes(), nil
 }
 
-func (codec Codec) DecodePacket(data []byte, direction Direction) (pk Packet, err error) {
+func (codec codec) DecodePacket(data []byte, direction packetDirection) (pk packet.Packet, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			pk = nil
@@ -101,7 +96,7 @@ func (codec Codec) DecodePacket(data []byte, direction Direction) (pk Packet, er
 	return pk, nil
 }
 
-func (codec Codec) EncodeBatch(packets [][]byte) ([]byte, error) {
+func (codec codec) EncodeBatch(packets [][]byte) ([]byte, error) {
 	var body bytes.Buffer
 	for _, payload := range packets {
 		if err := gtprotocol.WriteVaruint32(&body, uint32(len(payload))); err != nil {
@@ -133,7 +128,7 @@ func (codec Codec) EncodeBatch(packets [][]byte) ([]byte, error) {
 	return batch, nil
 }
 
-func (codec Codec) DecodeBatch(data []byte) ([][]byte, error) {
+func (codec codec) DecodeBatch(data []byte) ([][]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -190,14 +185,14 @@ func (codec Codec) DecodeBatch(data []byte) ([][]byte, error) {
 	return packets, nil
 }
 
-func (codec Codec) pool(direction Direction) packet.Pool {
+func (codec codec) pool(direction packetDirection) packet.Pool {
 	switch direction {
-	case FromClient:
+	case fromClient:
 		if codec.clientPool != nil {
 			return codec.clientPool
 		}
 		return packet.NewClientPool()
-	case FromServer:
+	case fromServer:
 		if codec.serverPool != nil {
 			return codec.serverPool
 		}
@@ -274,11 +269,11 @@ func (state *cryptState) verify(data []byte) error {
 	return nil
 }
 
-func (direction Direction) String() string {
+func (direction packetDirection) String() string {
 	switch direction {
-	case FromClient:
+	case fromClient:
 		return "client"
-	case FromServer:
+	case fromServer:
 		return "server"
 	default:
 		return "unknown"

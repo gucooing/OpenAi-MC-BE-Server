@@ -1,4 +1,4 @@
-package protocol
+package server
 
 import (
 	"bytes"
@@ -14,14 +14,14 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 )
 
-const HandshakeSaltBytes = 16
+const handshakeSaltBytes = 16
 
 type handshakeSaltClaims struct {
 	Salt string `json:"salt"`
 }
 
-func NewServerHandshake(clientPublicKey *ecdsa.PublicKey, serverPrivateKey *ecdsa.PrivateKey, salt []byte) (*packet.ServerToClientHandshake, [32]byte, error) {
-	keyBytes, err := SharedEncryptionKey(serverPrivateKey, clientPublicKey, salt)
+func newServerHandshake(clientPublicKey *ecdsa.PublicKey, serverPrivateKey *ecdsa.PrivateKey, salt []byte) (*packet.ServerToClientHandshake, [32]byte, error) {
+	keyBytes, err := sharedEncryptionKey(serverPrivateKey, clientPublicKey, salt)
 	if err != nil {
 		return nil, [32]byte{}, err
 	}
@@ -40,7 +40,7 @@ func NewServerHandshake(clientPublicKey *ecdsa.PublicKey, serverPrivateKey *ecds
 	return &packet.ServerToClientHandshake{JWT: []byte(serverJWT)}, keyBytes, nil
 }
 
-func ClientEncryptionKey(serverJWT []byte, clientPrivateKey *ecdsa.PrivateKey) ([32]byte, error) {
+func clientEncryptionKey(serverJWT []byte, clientPrivateKey *ecdsa.PrivateKey) ([32]byte, error) {
 	if clientPrivateKey == nil {
 		return [32]byte{}, fmt.Errorf("client private key cannot be nil")
 	}
@@ -64,10 +64,10 @@ func ClientEncryptionKey(serverJWT []byte, clientPrivateKey *ecdsa.PrivateKey) (
 	if err != nil {
 		return [32]byte{}, fmt.Errorf("decode server handshake salt: %w", err)
 	}
-	return SharedEncryptionKey(clientPrivateKey, serverPublicKey, salt)
+	return sharedEncryptionKey(clientPrivateKey, serverPublicKey, salt)
 }
 
-func SharedEncryptionKey(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey, salt []byte) ([32]byte, error) {
+func sharedEncryptionKey(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey, salt []byte) ([32]byte, error) {
 	if privateKey == nil {
 		return [32]byte{}, fmt.Errorf("private key cannot be nil")
 	}
@@ -77,8 +77,8 @@ func SharedEncryptionKey(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKe
 	if publicKey == nil {
 		return [32]byte{}, fmt.Errorf("public key cannot be nil")
 	}
-	if len(salt) != HandshakeSaltBytes {
-		return [32]byte{}, fmt.Errorf("handshake salt must be %d bytes, got %d", HandshakeSaltBytes, len(salt))
+	if len(salt) != handshakeSaltBytes {
+		return [32]byte{}, fmt.Errorf("handshake salt must be %d bytes, got %d", handshakeSaltBytes, len(salt))
 	}
 	if publicKey.Curve == nil || publicKey.X == nil || publicKey.Y == nil {
 		return [32]byte{}, fmt.Errorf("public key is incomplete")
