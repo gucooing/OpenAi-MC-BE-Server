@@ -18,6 +18,7 @@ type Config struct {
 	MaxPlayers   int
 	ViewDistance int
 	OnlineMode   bool
+	GameMode     string
 	LogLevel     string
 	LogFile      string
 	ColorLogs    bool
@@ -30,6 +31,7 @@ var DefaultConfig = Config{
 	MaxPlayers:   20,
 	ViewDistance: 8,
 	OnlineMode:   false,
+	GameMode:     "Survival",
 	LogLevel:     "info",
 	LogFile:      "logs/server.log",
 	ColorLogs:    true,
@@ -91,6 +93,7 @@ func (cfg Config) MarshalProperties() string {
 	builder.WriteString(fmt.Sprintf("max-players=%d\n", cfg.MaxPlayers))
 	builder.WriteString(fmt.Sprintf("view-distance=%d\n", cfg.ViewDistance))
 	builder.WriteString(fmt.Sprintf("online-mode=%t\n", cfg.OnlineMode))
+	builder.WriteString("gamemode=" + cfg.GameMode + "\n")
 	builder.WriteString("log-level=" + cfg.LogLevel + "\n")
 	builder.WriteString("log-file=" + cfg.LogFile + "\n")
 	builder.WriteString(fmt.Sprintf("color-logs=%t\n", cfg.ColorLogs))
@@ -109,6 +112,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.ViewDistance < 2 {
 		return fmt.Errorf("view-distance must be at least 2")
+	}
+	if cfg.GameMode == "" {
+		return fmt.Errorf("gamemode cannot be empty")
 	}
 	return nil
 }
@@ -143,6 +149,8 @@ func (cfg *Config) apply(key string, value string) error {
 			return fmt.Errorf("online-mode must be true or false: %w", err)
 		}
 		cfg.OnlineMode = onlineMode
+	case "gamemode":
+		cfg.GameMode = value
 	case "log-level":
 		cfg.LogLevel = value
 	case "log-file":

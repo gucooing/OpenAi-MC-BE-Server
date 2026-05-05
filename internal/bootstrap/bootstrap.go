@@ -5,10 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"path/filepath"
+	"strconv"
 
 	"gucooing/bds/internal/config"
 	"gucooing/bds/internal/logging"
+	networkraknet "gucooing/bds/internal/network/raknet"
+	appprotocol "gucooing/bds/internal/protocol"
 )
 
 type Options struct {
@@ -69,7 +73,31 @@ func RunContext(ctx context.Context, stdout, stderr io.Writer, args []string) er
 		logger.Info("configuration check complete")
 		return nil
 	}
+	if ctx.Err() != nil {
+		logger.Info("shutdown requested", "reason", ctx.Err())
+		return nil
+	}
 
+	listenAddress := net.JoinHostPort(serverConfig.Address, strconv.Itoa(serverConfig.Port))
+	raknetServer, err := networkraknet.Listen(networkraknet.Options{
+		Address: listenAddress,
+		PongInfo: networkraknet.PongInfo{
+			MOTD:             serverConfig.ServerName,
+			ProtocolVersion:  ProtocolVersion,
+			MinecraftVersion: MinecraftVersion,
+			MaxPlayers:       serverConfig.MaxPlayers,
+			ServerName:       Name,
+			GameMode:         serverConfig.GameMode,
+		},
+		Logger:         logger.Logger,
+		SessionHandler: appprotocol.DebugSessionHandler(logger.Logger),
+	})
+	if err != nil {
+		return err
+	}
+	defer raknetServer.Close()
+
+	logger.Info("raknet listener started", "address", raknetServer.Addr())
 	logger.Info("runtime waiting for shutdown", "max_players", serverConfig.MaxPlayers, "view_distance", serverConfig.ViewDistance)
 	<-ctx.Done()
 	logger.Info("shutdown requested", "reason", ctx.Err())

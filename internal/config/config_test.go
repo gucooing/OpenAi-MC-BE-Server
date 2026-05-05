@@ -31,6 +31,9 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 	if !strings.Contains(string(content), "log-file=logs/server.log") {
 		t.Fatalf("default config %q does not contain log file", string(content))
 	}
+	if !strings.Contains(string(content), "gamemode=Survival") {
+		t.Fatalf("default config %q does not contain gamemode", string(content))
+	}
 }
 
 func TestLoadReadsProperties(t *testing.T) {
@@ -42,6 +45,7 @@ func TestLoadReadsProperties(t *testing.T) {
 		"max-players=5",
 		"view-distance=4",
 		"online-mode=true",
+		"gamemode=Creative",
 		"log-level=debug",
 		"log-file=",
 		"color-logs=false",
@@ -57,7 +61,7 @@ func TestLoadReadsProperties(t *testing.T) {
 	if created {
 		t.Fatalf("Load() created = true, want false")
 	}
-	if cfg.ServerName != "Local Test" || cfg.Address != "127.0.0.1" || cfg.Port != 19133 || !cfg.OnlineMode {
+	if cfg.ServerName != "Local Test" || cfg.Address != "127.0.0.1" || cfg.Port != 19133 || !cfg.OnlineMode || cfg.GameMode != "Creative" {
 		t.Fatalf("Config = %+v, want values from properties", cfg)
 	}
 	if cfg.LogFile != "" || cfg.ColorLogs {

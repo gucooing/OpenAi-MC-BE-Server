@@ -1,0 +1,24 @@
+BetterAltay-Go
+
+This project is a Go rewrite of BetterAltay, a Minecraft: Bedrock Edition
+server derived from PocketMine-MP and Altay.
+
+Source references:
+- BetterAltay: https://github.com/Benedikt05/BetterAltay
+- PocketMine-MP: https://github.com/pmmp/PocketMine-MP
+- Altay: https://github.com/unresolved3169/Altay
+
+The current rewrite uses BetterAltay's observed behavior, protocol constants,
+configuration conventions and module boundaries as implementation references.
+The initial protocol baseline is Minecraft Bedrock 1.26.10, protocol 944.
+
+License policy:
+- Project license: GNU Lesser General Public License v3.0, matching BetterAltay.
+- Keep this NOTICE file with source and binary distributions.
+- Preserve upstream attribution in documentation and release notes.
+- Do not add per-file copyright headers to every new Go source file by default.
+  Add a short source note only when a file intentionally ports non-trivial
+  behavior, data tables or algorithms from an upstream file.
+- Third-party dependencies must keep their own license notices documented before
+  release.
+

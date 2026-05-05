@@ -76,7 +76,7 @@
 | 里程碑 | 目标 | 验收标准 | 状态 | 完成情况 | 备注 | 需补充 |
 |---|---|---|---|---|---|---|
 | M0 | 项目骨架可编译 | `go test ./...` 通过，`cmd/bds` 可启动并打印版本 | DONE | 已建立 `cmd/bds`、`internal/bootstrap`、版本信息和基础测试 | `go test ./...` 通过；`go run ./cmd/bds -version` 可输出版本 | 否 |
-| M1 | RakNet ping 可见 | Bedrock 客户端局域网列表能看到 MOTD 或用测试工具获得 ping pong | TODO |  |  | 需确认是否自研 RakNet 或选库 |
+| M1 | RakNet ping 可见 | Bedrock 客户端局域网列表能看到 MOTD 或用测试工具获得 ping pong | DONE | 已接入 `go-raknet`，服务端可响应 BetterAltay 风格 `MCPE;...;` pong 数据，本地测试工具可获得 ping pong | 已通过 `internal/network/raknet` 适配层隔离第三方库；尚未用真实 Bedrock 客户端手工验证局域网列表 | 否 |
 | M2 | 登录握手闭环 | 客户端能连接到服务器并进入资源包/StartGame 流程 | TODO |  |  | 需补充协议样例包 |
 | M3 | 单人平坦世界可进入 | 客户端能出生在固定世界，能看到区块并移动 | TODO |  |  | 否 |
 | M4 | 基础玩法闭环 | 聊天、命令、放置/破坏基础方块、背包热栏可用 | TODO |  |  | 否 |
@@ -125,11 +125,12 @@ bds/
 | DEC-001 | 初始协议基线 | BetterAltay 当前 `protocol 944`、`MC 1.26.10` | DONE | 来自源项目 `ProtocolInfo.php` | 否 |
 | DEC-002 | 初始目标 Go module | `gucooing/bds` | DONE | 来自 `go.mod` | 否 |
 | DEC-003 | 插件兼容策略 | 未定 | NEEDS-SUPPLEMENT | 选项：Go 原生插件、脚本插件、PHP 进程桥接、只兼容配置和行为 | 待确认：是否必须兼容 API3 PHP 插件 |
-| DEC-004 | RakNet 策略 | 未定 | NEEDS-SUPPLEMENT | 选项：自研、fork/适配成熟库、先适配后替换 | 需调研并压测 |
+| DEC-004 | RakNet 策略 | 初始采用 `github.com/sandertv/go-raknet v1.15.0`，通过 `internal/network/raknet` 适配层隔离 | DONE | 先适配成熟库以推进 M1/M2；若 M2/M6 暴露底层控制或稳定性问题，再 fork 或替换 | 否 |
 | DEC-005 | 世界存储格式 | 未定 | NEEDS-SUPPLEMENT | 选项：PMMP Anvil/LevelDB 兼容、仅新格式、双格式 | 待确认：是否需要直接读取旧世界 |
-| DEC-006 | 授权与署名 | 遵守 LGPL-3.0 及源项目声明 | TODO | 重写仍需保留来源和许可证说明 | 需补充 LICENSE/NOTICE 策略 |
+| DEC-006 | 授权与署名 | 项目保持 LGPL-3.0，保留 `LICENSE`/`NOTICE`，上游来源和第三方依赖在发行前登记 | DONE | 默认不为每个新 Go 文件加版权头；非平凡移植上游行为、数据表或算法时在局部源码或文档加来源说明 | 否 |
 | DEC-007 | 最小可玩目标 | 单人平坦世界 + 移动 + 聊天 + 基础方块交互 | TODO | 作为 M3/M4 的范围边界 | 否 |
 | DEC-008 | 初始配置格式 | `server.properties` | DONE | 先用于 Go 服务端常规配置；PocketMine YAML 兼容后续作为迁移/兼容 Provider 处理 | 否 |
+| DEC-009 | 协议与登录实现策略 | 优先采用成熟开源库，如 `go-raknet`、`gophertunnel`；仅在缺口处做薄适配 | DONE | 协议、登录、batch、packet pool 先跟随开源实现，避免重复手写底层编解码 | 否 |
 
 ## 5. 优先级规则
 
@@ -150,9 +151,9 @@ bds/
 | A-002 | 建立 git 仓库或确认版本管理方式 | P0 | DONE | `git status` 可用，或记录不用 git 的替代方案 | 已在 `bds` 目录执行 `git init` | 当前文件均为初始未跟踪状态，等待后续提交策略 | 否 |
 | A-003 | 梳理 BetterAltay 模块清单和源码规模 | P0 | DONE | 完成模块数量基线 | 已记录主要模块和文件数 | 统计来自 `src/pocketmine` | 否 |
 | A-004 | 明确重写级别：行为兼容/API 兼容/插件兼容 | P0 | NEEDS-SUPPLEMENT | 写入 `DEC-003` 和兼容矩阵 |  | 插件策略会影响架构 | 待用户确认 |
-| A-005 | 建立设计文档目录 | P1 | TODO | `docs/architecture.md`、`docs/protocol.md` 等存在 |  |  | 否 |
+| A-005 | 建立设计文档目录 | P1 | DONE | `docs/architecture.md`、`docs/protocol.md` 等存在 | 已创建 `docs/architecture.md` 和 `docs/protocol.md` | 记录协议适配和模块边界 | 否 |
 | A-006 | 建立编码规范 | P1 | DONE | `docs/coding-standards.md` 或 README 记录 | 已创建 `docs/coding-standards.md` | 已包含禁止无意义硬编码、小函数和中转函数，以及并发和数据来源规则 | 否 |
-| A-007 | 建立许可证/NOTICE 策略 | P0 | TODO | `LICENSE`、`NOTICE`、源码头策略明确 |  | 源项目 LGPL-3.0 | 需确认法律合规细节 |
+| A-007 | 建立许可证/NOTICE 策略 | P0 | DONE | `LICENSE`、`NOTICE`、源码头策略明确 | 已补充 `LICENSE`、`NOTICE` 和 `docs/license-notice.md` | 法律细节仍应在正式发布前人工复核；当前工程策略已明确 | 否 |
 | A-008 | 建立迁移兼容矩阵 | P1 | TODO | 表格列出配置、世界、插件、资源包、玩家数据兼容性 |  |  | 待确认旧数据兼容目标 |
 
 ### 6.2 阶段 B：Go 项目骨架
@@ -166,21 +167,21 @@ bds/
 | B-005 | 建立日志系统 | P0 | DONE | 控制台彩色日志、文件日志、日志级别 | 已实现 `internal/logging`，支持 `debug/info/warn/error`、ANSI 彩色控制台输出和文件日志 | 文件路径由 `server.properties` 的 `log-file` 控制，空值可关闭文件日志 | 否 |
 | B-006 | 建立优雅关闭 | P1 | REVIEW | Ctrl+C、命令 stop、异常退出路径可测 | 已在入口接入 `os.Interrupt`/`SIGTERM`，bootstrap 可等待 context 关闭并有测试覆盖 | 世界保存、踢出玩家、网络关闭需等对应子系统接入后补钩子 | 是：后续子系统接入关闭钩子 |
 | B-007 | 建立基础测试框架 | P0 | DONE | `go test ./...` 通过 | 已添加 `internal/bootstrap/bootstrap_test.go` | 覆盖版本输出和 data path 输出 | 否 |
-| B-008 | 建立 lint/format 脚本 | P1 | TODO | `gofmt`、`go test`、可选 lint 一键运行 |  | Windows PowerShell 优先 | 否 |
+| B-008 | 建立 lint/format 脚本 | P1 | DONE | `gofmt`、`go test`、可选 lint 一键运行 | 已建立 `scripts/test.ps1`，支持格式化、`go test ./...`、可选 `-Race` 和 `-RunCheck` | Windows PowerShell 脚本已作为当前主入口；后续 CI 可复用 | 否 |
 | B-009 | 建立错误与 panic 策略 | P1 | TODO | 文档和公共 helper |  | 区分配置错误、协议错误、内部 bug | 否 |
 
 ### 6.3 阶段 C：协议与 RakNet 网络层
 
 | ID | 任务 | 优先级 | 状态 | 产出/验收 | 完成情况 | 备注 | 需补充 |
 |---|---|---|---|---|---|---|---|
-| C-001 | RakNet 方案调研与决策 | P0 | TODO | 写入 `DEC-004`，列出取舍和压测结果 |  | 决定自研或选库 | 需联网/资料调研 |
-| C-002 | 实现或接入 UDP 监听 | P0 | TODO | 绑定端口，处理启动失败 |  | 默认 19132 | 否 |
-| C-003 | 实现 RakNet ping/pong | P0 | TODO | 客户端列表可看到 MOTD |  | M1 验收核心 | 否 |
-| C-004 | 实现 RakNet session 生命周期 | P0 | TODO | 连接、断开、超时、MTU、可靠包 |  |  | 否 |
-| C-005 | 实现 MCPE batch/压缩层 | P0 | TODO | packet batch 编解码测试通过 |  | zlib/可能的网络设置包 | 需补充协议样例 |
-| C-006 | 实现登录链解析 | P0 | TODO | LoginPacket JWT/skin/device 信息可解析 |  | 离线/在线验证策略待定 | 需确认认证模式 |
+| C-001 | RakNet 方案调研与决策 | P0 | DONE | 写入 `DEC-004`，列出取舍和压测结果 | 已决定初始适配 `github.com/sandertv/go-raknet v1.15.0`，并记录到 `docs/network-raknet.md` | 当前完成 smoke test，尚未进行多人压测 | 否 |
+| C-002 | 实现或接入 UDP 监听 | P0 | DONE | 绑定端口，处理启动失败 | 已新增 `internal/network/raknet` 适配层并在 bootstrap 中按 `server-address/server-port` 启动监听 | 默认 19132；`-check` 不启动网络监听 | 否 |
+| C-003 | 实现 RakNet ping/pong | P0 | DONE | 客户端列表可看到 MOTD | 已实现 BetterAltay 风格 pong 数据并用 `raknet.PingTimeout` 本地验证 | M1 已可由测试工具验收；真实 Bedrock 客户端列表待手工补测 | 否 |
+| C-004 | 实现 RakNet session 生命周期 | P0 | DONE | 连接、断开、超时、MTU、可靠包 | 已为 `go-raknet` 会话增加可注入处理器、活跃连接跟踪和关闭等待；MTU/可靠传输由底层库负责 | 当前只做会话生命周期边界，MCPE 登录和包分发仍待实现 | 否 |
+| C-005 | 实现 MCPE batch/压缩层 | P0 | DONE | packet batch 编解码测试通过 | 已由 `internal/protocol/codec.go` 接入 gophertunnel 的 batch 压缩/解压 | 使用 `packet.DefaultCompression` 和 256 阈值 | 否 |
+| C-006 | 实现登录链解析 | P0 | REVIEW | LoginPacket JWT/skin/device 信息可解析 | 已由 `internal/protocol/login.go` 接入 gophertunnel 登录解析，并补充离线登录测试 | 认证模式仍待定；当前先跑通解析和摘要日志 | 是：在线认证/验证策略 |
 | C-007 | 实现加密握手 | P1 | TODO | 支持 ServerToClientHandshake/ClientToServerHandshake |  | 依赖认证策略 | 需补充密钥流程 |
-| C-008 | 实现包分发器 | P0 | TODO | 按 packet ID 路由到 handler |  | 对标 PacketPool/DataPacket | 否 |
+| C-008 | 实现包分发器 | P0 | DONE | 按 packet ID 路由到 handler | 已实现 `internal/protocol/dispatcher.go`，用 `packet.Packet` 和 `ID()` 路由 handler | 对标 `PacketPool`/`DataPacket` 的路由职责 | 否 |
 | C-009 | 建立协议 fuzz/边界测试 | P1 | TODO | 畸形包不导致崩溃 |  |  | 否 |
 | C-010 | 建立虚拟客户端测试工具 | P1 | TODO | 可自动 ping、握手、登录 smoke test |  | 后续回归核心 | 需补充样例流程 |
 
@@ -189,8 +190,8 @@ bds/
 | ID | 任务 | 优先级 | 状态 | 产出/验收 | 完成情况 | 备注 | 需补充 |
 |---|---|---|---|---|---|---|---|
 | D-001 | 抽取 `ProtocolInfo.php` 常量到 Go | P0 | TODO | Go 常量覆盖协议号与 packet ID |  | 可手工或生成 | 否 |
-| D-002 | 建立协议读写基础类型 | P0 | TODO | varint、zigzag、little endian、string、UUID 测试通过 |  | 对标 Binary/BinaryStream | 否 |
-| D-003 | 建立 Packet interface | P0 | TODO | `ID()`、`Marshal`、`Unmarshal` 或等价接口 |  | 需稳定错误返回 | 否 |
+| D-002 | 建立协议读写基础类型 | P0 | DONE | varint、zigzag、little endian、string、UUID 测试通过 | 已改为通过 `internal/protocol` 适配 gophertunnel 的 Reader/Writer、packet header 和 batch codec | 遵循 `DEC-009`，不保留自写二进制流实现 | 否 |
+| D-003 | 建立 Packet interface | P0 | DONE | `ID()`、`Marshal`、`Unmarshal` 或等价接口 | 已直接复用 `gophertunnel` 的 `packet.Packet` 接口，并在 local adapter 中透出 | 与 packet pool、codec 和 dispatcher 一起使用 | 否 |
 | D-004 | 实现登录阶段核心包 | P0 | TODO | Login、PlayStatus、Handshake、Disconnect、ResourcePack、StartGame |  | M2 必需 | 否 |
 | D-005 | 实现世界同步核心包 | P0 | TODO | LevelChunk、SubChunk、UpdateBlock、SetTime、SetSpawnPosition |  | M3 必需 | 否 |
 | D-006 | 实现玩家同步核心包 | P0 | TODO | AddPlayer、MovePlayer、PlayerList、SetActorData、SetActorMotion |  | M3/M6 必需 | 否 |
@@ -370,7 +371,7 @@ bds/
 | 源模块 | 文件数 | Go 目标模块 | 状态 | 完成情况 | 备注 | 需补充 |
 |---|---:|---|---|---|---|---|
 | root constants/classes | 13 | `internal/bootstrap`、`internal/server` | TODO |  | Server、Player、PocketMine、VersionInfo 等 | 否 |
-| `network` | 382 | `internal/network`、`internal/protocol` | TODO |  | 最大风险模块，优先做核心包 | 需补充协议测试 |
+| `network` | 382 | `internal/network`、`internal/protocol` | DOING | 已完成 RakNet 初始适配、UDP 监听、unconnected ping/pong、session 生命周期、gophertunnel 协议适配、batch 压缩、登录解析、包分发器和 debug 包流日志 | 登录握手闭环、加密、StartGame 和真实客户端验收仍未完成 | 需补充协议样例和客户端测试 |
 | `block` | 208 | `internal/block` | TODO |  | 方块状态、碰撞、更新、掉落 | 需补充 runtime ID 映射 |
 | `item` | 174 | `internal/item` | TODO |  | 物品注册表、工具、食物、附魔 | 需补充物品映射 |
 | `level` | 144 | `internal/world` | TODO |  | 世界、区块、生成器、格式 | 需确认存储格式 |
@@ -397,8 +398,8 @@ bds/
 
 | 功能 | MVP | 完整目标 | 状态 | 备注 | 需补充 |
 |---|---|---|---|---|---|
-| 客户端 ping | 必须 | MOTD、人数、协议、世界名完整 | TODO | M1 | 否 |
-| 登录 | 必须 | 在线/离线验证、皮肤、设备信息、封禁检查 | TODO | M2 | 需确认认证策略 |
+| 客户端 ping | 必须 | MOTD、人数、协议、世界名完整 | DONE | M1；本地 RakNet ping 测试通过，真实客户端列表待手工补测 | 否 |
+| 登录 | 必须 | 在线/离线验证、皮肤、设备信息、封禁检查 | REVIEW | M2；已能解析 LoginPacket 并输出 debug 摘要日志，尚未完成加密握手/StartGame 闭环 | 需确认认证策略 |
 | 世界 | 平坦世界 | 读取/保存兼容世界、多个世界、生成器 | TODO | M3/M5 | 需确认格式 |
 | 区块 | 固定视距发送 | 动态视距、缓存、压缩优化 | TODO | M3 | 否 |
 | 移动 | 单人不回弹 | 多人同步、碰撞、反作弊基础 | TODO | M3/M6 | 否 |
@@ -419,7 +420,7 @@ bds/
 |---|---|---|---|---|---|
 | R-001 | PHP 插件生态无法直接在 Go 中运行 | 插件兼容承诺可能无法兑现 | OPEN | 早期明确兼容边界；考虑脚本/外部进程桥接 | 用户决策 |
 | R-002 | Bedrock 协议复杂且变化快 | 登录、背包、区块容易不兼容 | OPEN | 固定协议 944；建立 golden tests 和真实客户端验收 | 样例包 |
-| R-003 | RakNet 实现质量决定稳定性 | 掉线、卡顿、吞包 | OPEN | 先调研库，必要时自研关键路径 | 调研结果 |
+| R-003 | RakNet 实现质量决定稳定性 | 掉线、卡顿、吞包 | OPEN | 初始采用 `go-raknet` 适配并通过本地 ping smoke test；M2/M6 阶段继续压测，必要时 fork 或替换 | 多人压测结果 |
 | R-004 | 世界格式兼容难度高 | 旧服迁移受阻 | OPEN | 先平坦新世界，后做 Provider 适配 | 目标格式 |
 | R-005 | 方块/物品 runtime ID 映射庞大 | 客户端显示错误或崩溃 | OPEN | 使用生成器和资源表，避免手写 | runtime 数据 |
 | R-006 | Go 并发误用导致竞态 | 随机崩溃或数据损坏 | OPEN | 主线程所有权模型，race 测试 | 文档和测试 |
@@ -434,6 +435,11 @@ bds/
 | 2026-05-05 | A-001 | 文件创建检查 | 通过 | `bds/REWRITE_TASKBOOK.md` | 初始任务书 |
 | 2026-05-05 | M0/B-001/B-003/B-007 | Go 测试与启动命令 | 通过 | `go test ./...`；`go run ./cmd/bds -version` | Go 环境提示 GOPATH 与 GOROOT 相同，但命令成功 |
 | 2026-05-05 | B-004/B-005/B-006 | 配置、日志、关闭骨架 | 通过 | `go test ./...`；`go run ./cmd/bds -data-path .runtime -check` | 覆盖默认配置生成、配置覆盖、日志级别、彩色控制台、文件日志和信号关闭骨架；`.runtime` 已清理并加入 `.gitignore` |
+| 2026-05-05 | A-007/B-008 | 文档与脚本检查 | 通过 | `powershell -ExecutionPolicy Bypass -File scripts\test.ps1` | 许可证/NOTICE 策略已写入 `docs/license-notice.md`；脚本执行 gofmt 和测试 |
+| 2026-05-05 | M1/C-001/C-002/C-003 | RakNet 本地 ping smoke test | 通过 | `go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | `internal/network/raknet` 测试会启动本地监听并用 `raknet.PingTimeout` 验证 `MCPE;...;` pong |
+| 2026-05-05 | C-004 | RakNet session 生命周期 | 通过 | `go test ./internal/network/raknet -count=1 -v`；`go test ./...` | 新增 session handler 注入、活跃会话跟踪和关闭等待；真实连接由 `raknet.DialTimeout` 验证 |
+| 2026-05-05 | D-002 | 协议读写基础类型 | 通过 | `go test ./internal/protocol -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 varint golden、zigzag round-trip、little-endian 数值、string、UUID 网络顺序和 EOF/overflow 边界 |
+| 2026-05-05 | DEC-009/C-005/C-006/C-008/D-003 | gophertunnel 协议适配与 debug 网络日志 | 通过 | `go test ./internal/protocol -count=1 -v`；`go test ./internal/bootstrap -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 batch 压缩、Packet interface、按 ID 分发、离线 Login 解析、NetworkSettings 回复和 debug 日志输出 |
 
 ## 11. 后续对话交接模板
 
@@ -455,15 +461,15 @@ bds/
 
 | 字段 | 内容 |
 |---|---|
-| 当前阶段 | 阶段 B：Go 项目骨架 |
-| 本次完成 | 初始化 git；补充实现规则；创建 `cmd/bds` 入口、版本信息、配置加载、彩色/文件日志、优雅关闭骨架、基础测试和编码规范 |
+| 当前阶段 | 阶段 C：协议与 RakNet 网络层 |
+| 本次完成 | 补齐协议开源优先决策；新增架构/协议文档；接入 gophertunnel 的 packet、batch/compression、login parser；实现 packet dispatcher；RakNet 会话接入 debug 级 parsed packet 日志和 NetworkSettings smoke path |
 | 仍在进行 | 无 |
-| 阻塞项 | 插件兼容策略、RakNet 策略、世界存储格式 |
-| 需要用户确认 | 是否必须兼容 PHP API3 插件；是否需要读取旧 BetterAltay 世界和玩家数据 |
-| 建议下一步 | 处理 B-008 测试脚本和 A-007 许可证/NOTICE 策略，随后进入 C-001 RakNet 方案决策 |
-| 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/bootstrap/version.go`、`internal/config/config.go`、`internal/logging/logger.go`、`docs/coding-standards.md` |
-| 已运行验证 | `go test ./...`；`go run ./cmd/bds -version`；`go run ./cmd/bds -data-path .runtime -check` |
-| 未运行验证 | 尚未进行真实 Bedrock 客户端连接测试 |
+| 阻塞项 | 插件兼容策略、世界存储格式、登录认证模式、协议样例包、真实 Bedrock 客户端验收 |
+| 需要用户确认 | 是否必须兼容 PHP API3 插件；是否需要读取旧 BetterAltay 世界和玩家数据；登录阶段先做离线模式还是完整在线认证 |
+| 建议下一步 | 推进 C-007 加密握手和 D-004 登录阶段核心流程，优先评估是否直接复用 gophertunnel `minecraft.Conn`/`Listener` 的完整登录栈 |
+| 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`go.sum`、`scripts/test.ps1`、`LICENSE`、`NOTICE`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/config/config.go`、`internal/network/raknet/*`、`internal/protocol/*`、`docs/architecture.md`、`docs/protocol.md`、`docs/license-notice.md`、`docs/network-raknet.md` |
+| 已运行验证 | `go test ./...`；`go run ./cmd/bds -version`；`go test ./internal/network/raknet -count=1 -v`；`go test ./internal/protocol -count=1 -v`；`go test ./internal/bootstrap -count=1 -v`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` |
+| 未运行验证 | 尚未进行真实 Bedrock 客户端局域网列表、登录连接和多人压测；`go test -race` 因当前环境缺少 `gcc` 未运行 |
 
 ## 12. 变更记录
 
@@ -473,3 +479,7 @@ bds/
 | 2026-05-05 | Codex | 正式开始 Go 重写：初始化 git，建立 `cmd/bds`、`internal/bootstrap`、版本信息、基础测试和编码规范 | A-002、A-006、B-001、B-002、B-003、B-007、M0 | `go test ./...` 和 `go run ./cmd/bds -version` 通过 |
 | 2026-05-05 | Codex | 增加 `server.properties` 配置加载、彩色/文件日志、信号关闭骨架和相关测试 | B-004、B-005、B-006、DEC-008 | `go test ./...` 和 `go run ./cmd/bds -data-path .runtime -check` 通过 |
 | 2026-05-05 | Codex | 创建任务书，建立状态规则、里程碑、分阶段任务、模块台账、风险和交接模板 | A-001 | 初始版本 |
+| 2026-05-05 | Codex | 补齐许可证/NOTICE 策略与测试脚本验收记录；新增 RakNet 决策文档、适配层、UDP 监听和 unconnected ping/pong smoke test | A-007、B-008、DEC-004、DEC-006、C-001、C-002、C-003、M1 | `go test ./...`、`scripts/test.ps1` 和 `scripts/test.ps1 -RunCheck` 通过；真实 Bedrock 客户端待测 |
+| 2026-05-05 | Codex | 完善 RakNet session 生命周期：支持 session handler 注入、活跃连接跟踪、关闭取消和等待退出，并补充真实 RakNet dial 测试 | C-004 | `go test ./internal/network/raknet -count=1 -v` 和 `go test ./...` 通过；`go test -race` 因当前环境缺少 `gcc` 未运行 |
+| 2026-05-05 | Codex | 建立 `internal/protocol` 基础 Reader/Writer 和 UUID 类型，覆盖 varint、zigzag、little-endian、string、UUID 网络顺序及边界测试 | D-002 | `go test ./internal/protocol -count=1 -v`、`go test ./...` 和 `scripts/test.ps1 -RunCheck` 通过 |
+| 2026-05-05 | Codex | 将协议层切换到开源优先适配：接入 gophertunnel 的 batch/compression、login parsing、packet interface 与 dispatcher，并补充 debug 网络日志 | DEC-009、C-005、C-006、C-008、D-003、A-005 | `go test ./internal/protocol -count=1 -v`、`go test ./internal/bootstrap -count=1 -v`、`go test ./...`、`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过 |
