@@ -1,0 +1,3 @@
+module gucooing/bds
+
+go 1.26.2

@@ -1,0 +1,9 @@
+*.exe
+*.test
+coverage.out
+.runtime/
+dist/
+logs/
+worlds/
+players/
+server.properties
