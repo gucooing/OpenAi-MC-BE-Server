@@ -79,7 +79,7 @@
 | M1 | RakNet ping 可见 | Bedrock 客户端局域网列表能看到 MOTD 或用测试工具获得 ping pong | DONE | 已接入 `go-raknet`，服务端可响应 BetterAltay 风格 `MCPE;...;` pong 数据，本地测试工具可获得 ping pong | 已通过 `internal/network/raknet` 适配层隔离第三方库；尚未用真实 Bedrock 客户端手工验证局域网列表 | 否 |
 | M2 | 登录握手闭环 | 客户端能连接到服务器并进入资源包/StartGame 流程 | DOING | 已撤回 gophertunnel `minecraft.Listener` 托管完成结论；当前 `internal/network/mcpe` 只负责 RakNet/MCPE batch 连接适配，bootstrap 注入 `internal/server` client factory，由 `internal/server` 自有 MCPE 会话处理 NetworkSettings、离线 Login 解析、本地 ServerToClientHandshake/ClientToServerHandshake 加密握手、空资源包栈和 StartGame 包发送 | 真实 Bedrock 客户端登录、在线认证和完整 Spawn 流程仍需验收 | 需补充真实客户端验收 |
 | M3 | 单人平坦世界可进入 | 客户端能出生在固定世界，能看到区块并移动 | DOING | 已新增 `internal/world` 可替换 `ChunkProvider` 和默认平坦世界生成器；`internal/server` 可在请求视距后发送 SetTime、SetSpawnPosition、NetworkChunkPublisherUpdate、LevelChunk 并响应 SubChunkRequest；测试可解码验证出生区块草地方块 | 真实客户端已能触发 StartGame 和初始区块发送；可见性、移动手感和玩家输入处理仍需后续验收/实现 | 需补充真实客户端验收 |
-| M4 | 基础玩法闭环 | 聊天、命令、放置/破坏基础方块、背包热栏可用 | DOING | 聊天、客户端命令、控制台命令和最小权限系统已接入；方块交互、背包热栏仍未完成 | D-007 已推进，D-008/H/I 仍是 M4 风险 | 否 |
+| M4 | 基础玩法闭环 | 聊天、命令、放置/破坏基础方块、背包热栏可用 | DOING | 聊天、客户端命令、控制台命令和最小权限系统已接入；背包/热栏初始同步、手持切换和基础 ItemStackRequest/Response 已接入；方块交互仍未完成 | D-008 已推进；H/I 方块交互、完整物品表、创造栏与掉落实体仍是 M4 风险 | 否 |
 | M5 | 持久化世界 | 可加载/保存至少一种世界格式，重启后方块变化保留 | TODO |  |  | 需确认目标格式 |
 | M6 | 多人稳定性 | 5-20 人测试，加入/离开/移动/聊天同步无明显崩溃 | TODO |  |  | 需准备测试方式 |
 | M7 | 插件/扩展 API | Go 原生插件或脚本扩展能注册命令、监听事件、修改玩法 | TODO |  |  | 需用户决策 |
@@ -195,7 +195,7 @@ bds/
 | D-005 | 实现世界同步核心包 | P0 | REVIEW | LevelChunk、SubChunk、UpdateBlock、SetTime、SetSpawnPosition | 已在 `internal/server` 接入 RequestChunkRadius/SubChunkRequest；初始世界同步发送 SetTime、SetSpawnPosition、NetworkChunkPublisherUpdate 和 limited LevelChunk；SubChunk 响应补齐 height map/render height map 并覆盖 flat spawn 编码测试；UpdateBlock 包构造测试已补充 | packet 定义/编解码复用 gophertunnel；LevelChunk/SubChunk 直接按当前协议编码，本地使用 BDS hash block network ID；完整方块/物品玩法交互仍留给后续 M4 路由真实实现 | 需补充真实客户端可见性验收 |
 | D-006 | 实现玩家同步核心包 | P0 | REVIEW | AddPlayer、MovePlayer、PlayerList、SetActorData、SetActorMotion | 已在 `internal/server` 新增本地玩家列表和玩家状态；StartGame 后发送 PlayerList/SetActorData/SetActorMotion，SetLocalPlayerAsInitialised 后向已生成玩家互发 AddPlayer/SetActorData/SetActorMotion；接入 PlayerAuthInput 与 MovePlayer 路由并广播 MovePlayer/SetActorData/SetActorMotion；补齐真实客户端进服时的 ServerBoundLoadingScreen、Interact 与 ContainerClose 路由：加载屏 start/end 状态记录与 ID 校验、鼠标悬停实体记录、自带背包 ContainerOpen/Close 窗口生命周期 | 参考 BetterAltay 的 PlayerList、AddPlayer 和 MovePlayer 流程；自带背包打开只处理窗口生命周期，物品内容/热栏/StackRequest 仍属 D-008；碰撞、反作弊、离线移除和多人压测留给后续 E/J/M6 | 需补充真实客户端多人验收 |
 | D-007 | 实现聊天与命令包 | P1 | REVIEW | Text、CommandRequest、AvailableCommands、CommandOutput | 已在 `internal/server` 路由 Text 与 CommandRequest；StartGame 后发送 AvailableCommands；CommandRequest 用 CommandOutput 回包；普通 Text 聊天广播给已生成玩家 | 命令解析/权限/控制台输入采用本地最小实现，packet 定义仍复用 gophertunnel；真实客户端命令 UI 仍需验收 | 需补充真实客户端命令 UI 验收 |
-| D-008 | 实现背包与物品核心包 | P1 | TODO | InventoryContent、InventorySlot、MobEquipment、ItemStackRequest/Response |  | M4 必需 | 否 |
+| D-008 | 实现背包与物品核心包 | P1 | REVIEW | InventoryContent、InventorySlot、MobEquipment、ItemStackRequest/Response | 已在 `internal/server` 新增服务端权威背包状态：请求视距后发送主背包/副手 InventoryContent 与当前手持 MobEquipment；AddPlayer 带当前 HeldItem；接入 MobEquipment 路由并广播热栏切换；接入独立 ItemStackRequest 和 PlayerAuthInput 内嵌 ItemStackRequest，支持 Take/Place/Swap/Drop/Destroy/MineBlock 的服务端校验、状态提交、ItemStackResponse OK/Error 与失败后的权威背包回同步；InventorySlot 用于热栏物品不一致时回补 | 当前初始背包仍为空，创造栏内容、配方合成、真实掉落实体、完整物品 runtime/ItemRegistry 生成留给 I/H 后续；需真实 Bedrock 客户端验收背包 UI 与热栏手感 | 需补充真实客户端背包/热栏验收 |
 | D-009 | 实现资源包包组 | P1 | TODO | ResourcePackInfo/Stack/ChunkData/ChunkRequest |  | 可先空资源包 | 否 |
 | D-010 | 建立协议包覆盖率表 | P1 | TODO | 列出 PHP 包、Go 包、测试状态 |  | 建议生成到 `docs/protocol-packets.md` | 否 |
 | D-011 | 建立协议样例数据目录 | P1 | TODO | golden packet 测试数据可复用 |  | 来自源测试、抓包或手写 | 需补充抓包方式 |
@@ -445,6 +445,7 @@ bds/
 | 2026-05-06 | D-005/G-008/M3 | 世界同步核心包 smoke test | 通过 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 `internal/server` MCPE 路由和世界同步逻辑、`internal/network/mcpe` batch codec、RequestChunkRadius 后的 SetTime/SetSpawnPosition/NetworkChunkPublisherUpdate/LevelChunk 顺序、SubChunk 响应、UpdateBlock 包构造和 LevelChunk 解码；真实客户端可见性仍待验收 |
 | 2026-05-06 | D-006/M3/M6 | 玩家同步核心包 smoke test | 通过 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 PlayerList 自身/全量同步、AddPlayer 同步到双方、SetActorData、SetActorMotion、PlayerAuthInput 位置/旋转/冲刺元数据广播和 legacy MovePlayer 广播；真实 Bedrock 客户端多人验收仍待补充 |
 | 2026-05-06 | D-006/真实客户端未处理包补齐 | 真实日志回归与 Go 测试 | 通过 | `go test ./internal/server -count=1`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 针对真实客户端日志中的 `ServerBoundLoadingScreen` state 5、`Interact` state 5/6 补齐本地路由：加载屏 start/end 状态记录与可选 ID 校验、鼠标悬停玩家目标记录、自带背包 ContainerOpen、重复打开防抖、ContainerClose/0xff 关闭处理和 close ack；D-008 仍负责物品内容、热栏与 StackRequest |
+| 2026-05-06 | D-008/M4 | 背包与物品核心包 smoke test | 通过 | `go test ./internal/server -count=1`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖初始 InventoryContent/MobEquipment 同步、MobEquipment 热栏切换广播、ItemStackRequest Take/Place/Swap/Drop/Destroy/MineBlock OK 响应、StackNetworkID 不一致和未支持 Consume 的 Error 响应、PlayerAuthInput 内嵌 ItemStackRequest；完整物品表/创造栏/合成/掉落实体仍待后续 |
 
 ## 11. 后续对话交接模板
 
@@ -467,11 +468,11 @@ bds/
 | 字段 | 内容 |
 |---|---|
 | 当前阶段 | 阶段 C/D：本地 MCPE session 与协议核心流程 |
-| 本次完成 | D-006 真实客户端未处理包补齐：接入 ServerBoundLoadingScreen、Interact、ContainerClose 路由；加载屏状态记录、鼠标悬停目标、自带背包 ContainerOpen/Close 生命周期和 close ack 均由 `internal/server` 本地实现 |
-| 仍在进行 | M2 登录握手闭环的真实客户端验收、M3 世界可见性与移动手感验收、M4 方块交互/背包热栏、M6 多人压测 |
+| 本次完成 | D-008 背包与物品核心包：新增本地权威背包状态，初始 InventoryContent/MobEquipment 同步、热栏 MobEquipment 切换广播、InventorySlot 不一致回补，以及独立/PlayerAuthInput 内嵌 ItemStackRequest 的 Take/Place/Swap/Drop/Destroy/MineBlock OK/Error 响应 |
+| 仍在进行 | M2 登录握手闭环的真实客户端验收、M3 世界可见性与移动手感验收、M4 方块交互、完整物品表/创造栏/合成/掉落实体、M6 多人压测 |
 | 阻塞项 | 真实 Bedrock 客户端验收、在线认证验收、插件兼容策略、世界存储格式、多人压测 |
 | 需要用户确认 | 是否必须兼容 PHP API3 插件；是否需要读取旧 BetterAltay 世界和玩家数据 |
-| 建议下一步 | 用 Bedrock 1.26.20/protocol 975 客户端重新验收登录、加载完成、移动、背包打开/关闭、聊天和命令 UI；随后推进 D-008 背包/物品包或 H/I 方块交互 |
+| 建议下一步 | 用 Bedrock 1.26.20/protocol 975 客户端重新验收登录、加载完成、移动、背包打开/关闭、热栏切换、聊天和命令 UI；随后推进 H/I 方块交互、完整物品表/创造栏、合成和掉落实体 |
 | 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`go.sum`、`scripts/test.ps1`、`LICENSE`、`NOTICE`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/config/config.go`、`internal/server/*`、`internal/network/mcpe/*`、`internal/network/raknet/*`、`docs/architecture.md`、`docs/protocol.md`、`docs/license-notice.md`、`docs/network-raknet.md` |
 | 已运行验证 | `go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` |
 | 未运行验证 | 尚未进行真实 Bedrock 客户端局域网列表、登录连接和多人压测；`go test -race` 因当前环境缺少 `gcc` 未运行 |
@@ -497,3 +498,4 @@ bds/
 | 2026-05-06 | Codex | 按用户确认将协议基线更新到 `gophertunnel v1.56.1` 的 `protocol 975/MC 1.26.20`，并完成 D-007 聊天与命令包：Text 聊天广播、CommandRequest、AvailableCommands、CommandOutput、控制台输入、最小命令框架和 OP 权限 | DEC-001、SCOPE-003、D-007、K-003、K-004、K-005、K-006、K-007、M4 | `go test ./...` 和 `powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；真实 Bedrock 客户端命令 UI 和聊天验收仍待做 |
 | 2026-05-06 | Codex | 排查 D-006 后世界显示成告示牌的问题：确认 gophertunnel v1.56.1 不提供方块 runtime 映射；补齐 StartGame 前 JigsawStructureData/VoxelShapes，LevelChunk 改为 limited sub-chunk request mode，SubChunk 响应补 height map/render height map，并增加 flat spawn sub-chunk 编码回归测试 | D-005、D-006、DEC-001、R-005、M3 | `go test ./internal/server ./internal/world -count=1`、`go test ./...` 和 `powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；仍需用户用真实 Bedrock 1.26.20/protocol 975 客户端确认世界可见性 |
 | 2026-05-06 | Codex | 针对真实客户端日志补齐 D-006 后续路由：ServerBoundLoadingScreen 记录加载屏 start/end 与可选 ID，Interact 处理鼠标悬停实体、自带背包打开和离开载具位置，ContainerClose 处理自带背包/聊天混合关闭并回 close ack | D-006、D-008、M3、M4 | `go test ./internal/server -count=1`、`go test ./... -count=1`、`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；物品内容、热栏和 StackRequest 留给 D-008 |
+| 2026-05-06 | Codex | 实现 D-008 背包与物品核心包：新增本地权威背包状态，初始 InventoryContent/MobEquipment 同步、AddPlayer HeldItem、MobEquipment 热栏切换广播、InventorySlot 不一致回补，以及独立/PlayerAuthInput 内嵌 ItemStackRequest 的 Take/Place/Swap/Drop/Destroy/MineBlock OK/Error 响应和拒绝后背包回同步 | D-008、M4、I-008 | `go test ./internal/server -count=1`、`go test ./... -count=1`、`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；完整物品表/创造栏/合成/真实掉落实体仍待后续 |

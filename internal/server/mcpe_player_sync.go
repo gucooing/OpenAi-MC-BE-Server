@@ -178,6 +178,7 @@ func (client *MCPEClient) addPlayerPacket() *packet.AddPlayer {
 		Pitch:            client.player.pitch,
 		Yaw:              client.player.yaw,
 		HeadYaw:          client.player.headYaw,
+		HeldItem:         client.inventory.heldItem(),
 		GameType:         gameModeID(client.handler.gameMode),
 		EntityMetadata:   cloneMetadata(client.player.metadata),
 		AbilityData:      playerAbilityData(int64(client.runtimeID)),
@@ -226,6 +227,11 @@ func (client *MCPEClient) handlePlayerAuthInput(_ context.Context, pk *packet.Pl
 	}
 	if client.state != stateSpawned {
 		return client.conn.WritePacket(client.movePlayerPacket(packet.MoveModeReset, pk.Tick))
+	}
+	if inputFlag(pk.InputData, packet.InputFlagPerformItemStackRequest) {
+		if err := client.processItemStackRequests([]gtprotocol.ItemStackRequest{pk.ItemStackRequest}); err != nil {
+			return err
+		}
 	}
 
 	oldPosition, oldVelocity := client.player.position, client.player.velocity

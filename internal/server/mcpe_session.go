@@ -81,6 +81,7 @@ type MCPEClient struct {
 	runtimeID          uint64
 	login              loginData
 	player             mcpePlayerState
+	inventory          *mcpeInventory
 	packets            packetRouter
 	chunksSent         bool
 	clientCacheEnabled bool
@@ -133,9 +134,10 @@ func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {
 
 func NewMCPEClient(handler *MCPEHandler, conn MCPEConn) *MCPEClient {
 	client := &MCPEClient{
-		handler: handler,
-		conn:    conn,
-		state:   stateAwaitNetworkSettings,
+		handler:   handler,
+		conn:      conn,
+		state:     stateAwaitNetworkSettings,
+		inventory: newMCPEInventory(),
 	}
 	client.packets = newMCPEClientRouter(client)
 	return client

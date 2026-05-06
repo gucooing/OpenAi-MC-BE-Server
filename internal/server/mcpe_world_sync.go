@@ -24,6 +24,9 @@ func (client *MCPEClient) handleRequestChunkRadius(ctx context.Context, pk *pack
 	if err := client.conn.WritePacket(&packet.CreativeContent{}); err != nil {
 		return fmt.Errorf("send CreativeContent: %w", err)
 	}
+	if err := client.sendInitialInventory(); err != nil {
+		return err
+	}
 	if !client.chunksSent {
 		if err := client.handler.chunks.SendInitial(ctx, client.conn); err != nil {
 			return err

@@ -109,19 +109,28 @@ func TestMCPEClientHandlesLoginResourcePacksAndWorldSync(t *testing.T) {
 	}
 	packetAt[*packet.BiomeDefinitionList](t, conn.packets, 13)
 	packetAt[*packet.CreativeContent](t, conn.packets, 14)
-	packetAt[*packet.NetworkChunkPublisherUpdate](t, conn.packets, 15)
-	if pk := packetAt[*packet.SetTime](t, conn.packets, 16); pk.Time != 0 {
+	if pk := packetAt[*packet.InventoryContent](t, conn.packets, 15); pk.WindowID != gtprotocol.WindowIDInventory || len(pk.Content) != mcpeInventorySlots {
+		t.Fatalf("InventoryContent = %+v, want main inventory sync", pk)
+	}
+	if pk := packetAt[*packet.InventoryContent](t, conn.packets, 16); pk.WindowID != gtprotocol.WindowIDOffHand || len(pk.Content) != 1 {
+		t.Fatalf("offhand InventoryContent = %+v, want one slot", pk)
+	}
+	if pk := packetAt[*packet.MobEquipment](t, conn.packets, 17); pk.EntityRuntimeID != start.EntityRuntimeID || pk.HotBarSlot != 0 {
+		t.Fatalf("MobEquipment = %+v, want initial held slot 0", pk)
+	}
+	packetAt[*packet.NetworkChunkPublisherUpdate](t, conn.packets, 18)
+	if pk := packetAt[*packet.SetTime](t, conn.packets, 19); pk.Time != 0 {
 		t.Fatalf("SetTime time = %d, want 0", pk.Time)
 	}
-	if pk := packetAt[*packet.SetSpawnPosition](t, conn.packets, 17); pk.SpawnPosition != (gtprotocol.BlockPos{0, 64, 0}) {
+	if pk := packetAt[*packet.SetSpawnPosition](t, conn.packets, 20); pk.SpawnPosition != (gtprotocol.BlockPos{0, 64, 0}) {
 		t.Fatalf("SetSpawnPosition = %+v, want spawn 0,64,0", pk)
 	}
 	for i := 0; i < 9; i++ {
-		if pk := packetAt[*packet.LevelChunk](t, conn.packets, 18+i); pk.SubChunkCount != gtprotocol.SubChunkRequestModeLimited {
+		if pk := packetAt[*packet.LevelChunk](t, conn.packets, 21+i); pk.SubChunkCount != gtprotocol.SubChunkRequestModeLimited {
 			t.Fatalf("LevelChunk %d sub chunk count = %d, want limited request mode", i, pk.SubChunkCount)
 		}
 	}
-	if pk := packetAt[*packet.PlayStatus](t, conn.packets, 27); pk.Status != packet.PlayStatusPlayerSpawn {
+	if pk := packetAt[*packet.PlayStatus](t, conn.packets, 30); pk.Status != packet.PlayStatusPlayerSpawn {
 		t.Fatalf("spawn status = %d, want PlayStatusPlayerSpawn", pk.Status)
 	}
 

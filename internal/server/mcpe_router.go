@@ -29,6 +29,8 @@ func newMCPEClientRouter(client *MCPEClient) packetRouter {
 	handlePacketRoute(&router, packet.IDServerBoundLoadingScreen, client.handleServerBoundLoadingScreen)
 	handlePacketRoute(&router, packet.IDInteract, client.handleInteract)
 	handlePacketRoute(&router, packet.IDContainerClose, client.handleContainerClose)
+	handlePacketRoute(&router, packet.IDMobEquipment, client.handleMobEquipment)
+	handlePacketRoute(&router, packet.IDItemStackRequest, client.handleItemStackRequest)
 	handlePacketRoute(&router, packet.IDPlayerAuthInput, client.handlePlayerAuthInput)
 	handlePacketRoute(&router, packet.IDMovePlayer, client.handleMovePlayer)
 	handlePacketRoute(&router, packet.IDText, client.handleText)
