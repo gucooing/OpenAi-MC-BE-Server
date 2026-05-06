@@ -34,7 +34,7 @@ func TestListenUsesOwnRakNetTransportForPing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PingTimeout() returned error: %v", err)
 	}
-	want := "MCPE;MCPE Ping Test;944;1.26.10;0;5;"
+	want := "MCPE;MCPE Ping Test;975;1.26.20;0;5;"
 	if got := string(data); len(got) < len(want) || got[:len(want)] != want {
 		t.Fatalf("ping data = %q, want prefix %q", got, want)
 	}

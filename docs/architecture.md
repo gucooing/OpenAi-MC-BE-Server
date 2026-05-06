@@ -6,7 +6,8 @@
 - `internal/bootstrap`: flags, config, logging, shutdown, listener startup.
 - `internal/network/raknet`: RakNet transport adapter only.
 - `internal/network/mcpe`: MCPE listener and connection adapter: RakNet session wiring, packet batch read/write, compression and encryption.
-- `internal/server`: server-owned MCPE login parsing, encryption handshake, resource-pack/spawn/world/player-sync session logic and packet routing.
+- `internal/server`: server-owned MCPE login parsing, encryption handshake, resource-pack/spawn/world/player-sync/chat/command session logic and packet routing.
+- `internal/command`: lightweight command registry, parsing, permission checks and AvailableCommands metadata.
 - `internal/world`: world-facing chunk provider and the default flat-world generator.
 - `internal/config`: `server.properties` loading.
 
@@ -28,4 +29,5 @@
 5. `internal/world` provides spawn data and generated chunks through a replaceable `ChunkProvider`.
 6. `internal/server` adapts world chunks to `NetworkChunkPublisherUpdate`, `SetTime`, `SetSpawnPosition`, `LevelChunk` and `SubChunk` packets, then writes them through the network connection interface.
 7. `internal/server` owns local player list/spawn/movement state and writes `PlayerList`, `AddPlayer`, `MovePlayer`, `SetActorData` and `SetActorMotion` directly through the network connection interface.
-8. Bootstrap controls shutdown and listener lifetime.
+8. `internal/server` routes chat and command packets through the local command registry; bootstrap routes console input to the same registry with a console sender.
+9. Bootstrap controls shutdown and listener lifetime.

@@ -122,7 +122,7 @@ func spawnTestClient(t *testing.T, ctx context.Context, handler *MCPEHandler, na
 	if err := client.HandlePacket(ctx, &packet.ResourcePackClientResponse{Response: packet.PackResponseCompleted}); err != nil {
 		t.Fatalf("%s ResourcePackClientResponse returned error: %v", name, err)
 	}
-	start := packetAt[*packet.StartGame](t, conn.packets, 3)
+	start := packetAt[*packet.StartGame](t, conn.packets, 5)
 	if err := client.HandlePacket(ctx, &packet.RequestChunkRadius{ChunkRadius: 1}); err != nil {
 		t.Fatalf("%s RequestChunkRadius returned error: %v", name, err)
 	}

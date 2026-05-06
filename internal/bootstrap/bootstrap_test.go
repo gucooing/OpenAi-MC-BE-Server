@@ -21,7 +21,7 @@ func TestRunPrintsVersion(t *testing.T) {
 	}
 
 	output := stdout.String()
-	for _, want := range []string{"BetterAltay-Go", "protocol=944", "minecraft=1.26.10", "source=BetterAltay/3.28.0", "fork=1.39.3"} {
+	for _, want := range []string{"BetterAltay-Go", "protocol=975", "minecraft=1.26.20", "source=BetterAltay/3.28.0", "fork=1.39.3"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("version output %q does not contain %q", output, want)
 		}

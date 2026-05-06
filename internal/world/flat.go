@@ -40,6 +40,7 @@ func (generator FlatGenerator) Chunk(ctx context.Context, position ChunkPos) (*C
 	if err != nil {
 		return nil, err
 	}
+	chunk.FillBiomeID(generator.BiomeData.ID)
 
 	layers := make([]uint32, len(generator.Layers))
 	for i, state := range generator.Layers {
@@ -50,18 +51,12 @@ func (generator FlatGenerator) Chunk(ctx context.Context, position ChunkPos) (*C
 		layers[i] = runtimeID
 	}
 
-	minY, maxY := int16(generator.DimensionData.Range().Min()), int16(generator.DimensionData.Range().Max())
 	for x := uint8(0); x < 16; x++ {
 		for z := uint8(0); z < 16; z++ {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			default:
-			}
-			for y := minY; y <= maxY; y++ {
-				if err := chunk.SetBiomeID(x, y, z, generator.BiomeData.ID); err != nil {
-					return nil, err
-				}
 			}
 			for layer, runtimeID := range layers {
 				y := generator.BaseY + int16(layer)

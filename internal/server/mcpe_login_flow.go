@@ -129,11 +129,20 @@ func (client *MCPEClient) startGame(_ context.Context) error {
 		return err
 	}
 	existingPlayers := client.handler.addPlayer(client)
+	if err := client.conn.WritePacket(jigsawStructureDataPacket()); err != nil {
+		return fmt.Errorf("send JigsawStructureData: %w", err)
+	}
+	if err := client.conn.WritePacket(&packet.VoxelShapes{}); err != nil {
+		return fmt.Errorf("send VoxelShapes: %w", err)
+	}
 	if err := client.conn.WritePacket(client.startGamePacket()); err != nil {
 		return fmt.Errorf("send StartGame: %w", err)
 	}
 	if err := client.conn.WritePacket(&packet.ItemRegistry{}); err != nil {
 		return fmt.Errorf("send ItemRegistry: %w", err)
+	}
+	if err := client.sendAvailableCommands(); err != nil {
+		return fmt.Errorf("send AvailableCommands: %w", err)
 	}
 	if err := client.sendInitialPlayerSync(existingPlayers); err != nil {
 		return err
@@ -176,5 +185,17 @@ func (client *MCPEClient) startGamePacket() *packet.StartGame {
 		ServerAuthoritativeInventory: true,
 		GameVersion:                  gtprotocol.CurrentVersion,
 		PropertyData:                 map[string]any{},
+		UseBlockNetworkIDHashes:      true,
+	}
+}
+
+func jigsawStructureDataPacket() *packet.JigsawStructureData {
+	return &packet.JigsawStructureData{
+		StructureData: map[string]any{
+			"processors":     []map[string]any{},
+			"template_pools": []map[string]any{},
+			"jigsaws":        []map[string]any{},
+			"structure_sets": []map[string]any{},
+		},
 	}
 }

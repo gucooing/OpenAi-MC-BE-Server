@@ -3,11 +3,11 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"net"
 
-	dfchunk "github.com/df-mc/dragonfly/server/world/chunk"
 	gtprotocol "github.com/sandertv/gophertunnel/minecraft/protocol"
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 
@@ -27,6 +27,11 @@ type chunkPublisher struct {
 }
 
 const initialWorldTime int32 = 0
+
+const (
+	subChunkVersion byte = 9
+	networkEncoding byte = 1
+)
 
 func newChunkPublisher(source appworld.ChunkProvider, radius int32, logger *slog.Logger) chunkPublisher {
 	if radius < 1 {
@@ -99,21 +104,17 @@ func (publisher chunkPublisher) SendBlockRuntimeID(conn packetWriter, position a
 }
 
 func levelChunkPacket(chunk *appworld.Chunk) (*packet.LevelChunk, error) {
-	encoded := dfchunk.Encode(chunk.Native(), dfchunk.NetworkEncoding)
-	raw := bytes.NewBuffer(make([]byte, 0, encodedPayloadSize(encoded)))
-	for _, subChunk := range encoded.SubChunks {
-		_, _ = raw.Write(subChunk)
-	}
-	_, _ = raw.Write(encoded.Biomes)
-	raw.WriteByte(0)
+	raw := encodeBiomes(chunk)
+	raw = append(raw, 0)
 
 	position := chunk.Position()
 	return &packet.LevelChunk{
-		Position:      gtprotocol.ChunkPos{position.X, position.Z},
-		Dimension:     chunk.Dimension().ID(),
-		SubChunkCount: uint32(len(encoded.SubChunks)),
-		CacheEnabled:  false,
-		RawPayload:    raw.Bytes(),
+		Position:        gtprotocol.ChunkPos{position.X, position.Z},
+		Dimension:       chunk.Dimension().ID(),
+		SubChunkCount:   gtprotocol.SubChunkRequestModeLimited,
+		HighestSubChunk: chunk.HighestFilledSubChunk(),
+		CacheEnabled:    false,
+		RawPayload:      raw,
 	}, nil
 }
 
@@ -148,8 +149,8 @@ func subChunkEntry(ctx context.Context, source appworld.ChunkProvider, dimension
 	}
 
 	targetY := request.Position[1] + int32(offset[1])
-	minSubY := int32(dimension.Range().Min() >> 4)
-	maxSubY := int32(dimension.Range().Max() >> 4)
+	minSubY := dimension.MinSubY()
+	maxSubY := dimension.MaxSubY()
 	if targetY < minSubY || targetY > maxSubY {
 		entry.Result = gtprotocol.SubChunkResultIndexOutOfBounds
 		return entry, nil
@@ -165,18 +166,25 @@ func subChunkEntry(ctx context.Context, source appworld.ChunkProvider, dimension
 	}
 
 	index := int(targetY - minSubY)
-	subChunks := chunk.Native().Sub()
-	if index < 0 || index >= len(subChunks) {
+	if index < 0 || index >= chunk.SubChunkCount() {
 		entry.Result = gtprotocol.SubChunkResultIndexOutOfBounds
 		return entry, nil
 	}
-	if subChunks[index].Empty() {
+	heightMapType, heightMapData := subChunkHeightMap(chunk, index)
+	if chunk.SubChunkEmpty(index) {
 		entry.Result = gtprotocol.SubChunkResultSuccessAllAir
+		entry.HeightMapType = heightMapType
+		entry.HeightMapData = heightMapData
+		entry.RenderHeightMapType = heightMapType
+		entry.RenderHeightMapData = heightMapData
 		return entry, nil
 	}
-	encoded := dfchunk.Encode(chunk.Native(), dfchunk.NetworkEncoding)
 	entry.Result = gtprotocol.SubChunkResultSuccess
-	entry.RawPayload = encoded.SubChunks[index]
+	entry.RawPayload = encodeSubChunk(chunk, index)
+	entry.HeightMapType = heightMapType
+	entry.HeightMapData = heightMapData
+	entry.RenderHeightMapType = heightMapType
+	entry.RenderHeightMapData = heightMapData
 	return entry, nil
 }
 
@@ -203,12 +211,122 @@ func blockPos(position appworld.BlockPos) gtprotocol.BlockPos {
 	return gtprotocol.BlockPos{position.X, position.Y, position.Z}
 }
 
-func encodedPayloadSize(data dfchunk.SerialisedData) int {
-	n := len(data.Biomes) + 1
-	for _, subChunk := range data.SubChunks {
-		n += len(subChunk)
+func subChunkHeightMap(chunk *appworld.Chunk, index int) (byte, []int8) {
+	data := make([]int8, 256)
+	higher, lower := true, true
+	for x := uint8(0); x < 16; x++ {
+		for z := uint8(0); z < 16; z++ {
+			y := chunk.HighestBlockY(x, z, 0)
+			i := (uint16(z) << 4) | uint16(x)
+			otherIndex := chunk.SubIndex(y)
+			if otherIndex > index {
+				data[i], lower = 16, false
+			} else if otherIndex < index {
+				data[i], higher = -1, false
+			} else {
+				data[i], lower, higher = int8(y-chunk.SubY(otherIndex)), false, false
+			}
+		}
 	}
-	return n
+	if higher {
+		return gtprotocol.HeightMapDataTooHigh, nil
+	}
+	if lower {
+		return gtprotocol.HeightMapDataTooLow, nil
+	}
+	return gtprotocol.HeightMapDataHasData, data
+}
+
+func encodeSubChunk(chunk *appworld.Chunk, index int) []byte {
+	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	storageCount := chunk.SubChunkLayerCount(index)
+	_ = buf.WriteByte(subChunkVersion)
+	_ = buf.WriteByte(byte(storageCount))
+	_ = buf.WriteByte(byte(int32(index) + chunk.MinSubY()))
+	for layer := uint8(0); int(layer) < storageCount; layer++ {
+		encodeBlockStorage(buf, chunk, index, layer)
+	}
+	return append([]byte(nil), buf.Bytes()...)
+}
+
+func encodeBlockStorage(buf *bytes.Buffer, chunk *appworld.Chunk, index int, layer uint8) {
+	baseY := chunk.SubY(index)
+	values := make([]uint32, 4096)
+	for i := range values {
+		x := uint8(i >> 8)
+		z := uint8((i >> 4) & 15)
+		y := int16(i & 15)
+		values[i] = chunk.RuntimeID(x, baseY+y, z, layer)
+	}
+	encodePalettedStorage(buf, values)
+}
+
+func encodeBiomes(chunk *appworld.Chunk) []byte {
+	buf := bytes.NewBuffer(make([]byte, 0, chunk.SubChunkCount()*4))
+	for index := 0; index < chunk.SubChunkCount(); index++ {
+		baseY := chunk.SubY(index)
+		values := make([]uint32, 4096)
+		for i := range values {
+			x := uint8(i >> 8)
+			z := uint8((i >> 4) & 15)
+			y := int16(i & 15)
+			values[i] = chunk.BiomeID(x, baseY+y, z)
+		}
+		encodePalettedStorage(buf, values)
+	}
+	return append([]byte(nil), buf.Bytes()...)
+}
+
+func encodePalettedStorage(buf *bytes.Buffer, values []uint32) {
+	palette, indices := paletteIndices(values)
+	bitsPerIndex := paletteBits(len(palette))
+	_ = buf.WriteByte(byte(bitsPerIndex<<1) | networkEncoding)
+	if bitsPerIndex != 0 {
+		writePackedIndices(buf, indices, bitsPerIndex)
+		_ = gtprotocol.WriteVarint32(buf, int32(len(palette)))
+	}
+	for _, value := range palette {
+		_ = gtprotocol.WriteVarint32(buf, int32(value))
+	}
+}
+
+func paletteIndices(values []uint32) ([]uint32, []uint16) {
+	palette := make([]uint32, 0, 4)
+	lookup := make(map[uint32]uint16, 4)
+	indices := make([]uint16, len(values))
+	for i, value := range values {
+		index, ok := lookup[value]
+		if !ok {
+			index = uint16(len(palette))
+			lookup[value] = index
+			palette = append(palette, value)
+		}
+		indices[i] = index
+	}
+	return palette, indices
+}
+
+func paletteBits(valueCount int) uint8 {
+	for _, bits := range []uint8{0, 1, 2, 3, 4, 5, 6, 8, 16} {
+		if valueCount <= 1<<bits {
+			return bits
+		}
+	}
+	return 16
+}
+
+func writePackedIndices(buf *bytes.Buffer, indices []uint16, bitsPerIndex uint8) {
+	indicesPerWord := 32 / int(bitsPerIndex)
+	mask := uint32((1 << bitsPerIndex) - 1)
+	words := make([]uint32, (len(indices)+indicesPerWord-1)/indicesPerWord)
+	for i, index := range indices {
+		wordIndex := i / indicesPerWord
+		bitOffset := uint((i % indicesPerWord) * int(bitsPerIndex))
+		words[wordIndex] |= (uint32(index) & mask) << bitOffset
+	}
+	for _, word := range words {
+		_ = binary.Write(buf, binary.LittleEndian, word)
+	}
 }
 
 func chunkPositions(center appworld.ChunkPos, radius int32) []appworld.ChunkPos {

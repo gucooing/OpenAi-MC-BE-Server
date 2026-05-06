@@ -14,8 +14,8 @@ func TestListenRespondsToUnconnectedPing(t *testing.T) {
 		Address: "127.0.0.1:0",
 		PongInfo: PongInfo{
 			MOTD:             "Ping Test",
-			ProtocolVersion:  944,
-			MinecraftVersion: "1.26.10",
+			ProtocolVersion:  975,
+			MinecraftVersion: "1.26.20",
 			MaxPlayers:       10,
 			ServerName:       "BetterAltay-Go",
 			GameMode:         "Survival",
@@ -36,7 +36,7 @@ func TestListenRespondsToUnconnectedPing(t *testing.T) {
 		t.Fatalf("PingTimeout() returned error: %v", err)
 	}
 
-	want := "MCPE;Ping Test;944;1.26.10;0;10;"
+	want := "MCPE;Ping Test;975;1.26.20;0;10;"
 	if got := string(data); len(got) < len(want) || got[:len(want)] != want {
 		t.Fatalf("ping data = %q, want prefix %q", got, want)
 	}
@@ -50,8 +50,8 @@ func TestListenRunsSessionHandlerUntilServerClose(t *testing.T) {
 		Address: "127.0.0.1:0",
 		PongInfo: PongInfo{
 			MOTD:             "Session Test",
-			ProtocolVersion:  944,
-			MinecraftVersion: "1.26.10",
+			ProtocolVersion:  975,
+			MinecraftVersion: "1.26.20",
 			MaxPlayers:       10,
 			ServerName:       "BetterAltay-Go",
 			GameMode:         "Survival",

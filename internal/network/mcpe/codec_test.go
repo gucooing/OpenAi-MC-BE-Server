@@ -9,11 +9,11 @@ import (
 )
 
 func TestCodecUsesGophertunnelProtocolBaseline(t *testing.T) {
-	if gtprotocol.CurrentProtocol != 944 {
-		t.Fatalf("CurrentProtocol = %d, want 944", gtprotocol.CurrentProtocol)
+	if gtprotocol.CurrentProtocol != 975 {
+		t.Fatalf("CurrentProtocol = %d, want 975", gtprotocol.CurrentProtocol)
 	}
-	if gtprotocol.CurrentVersion != "1.26.10" {
-		t.Fatalf("CurrentVersion = %q, want 1.26.10", gtprotocol.CurrentVersion)
+	if gtprotocol.CurrentVersion != "1.26.20" {
+		t.Fatalf("CurrentVersion = %q, want 1.26.20", gtprotocol.CurrentVersion)
 	}
 }
 

@@ -4,6 +4,8 @@
 
 The project uses `github.com/sandertv/gophertunnel` directly for packet structs, packet pools, packet field encode/decode, compression algorithms and login-chain parsing.
 
+The current protocol baseline follows `gophertunnel v1.56.1`: Minecraft Bedrock `1.26.20`, protocol `975`.
+
 Runtime protocol logic is local code. `gophertunnel` must not own the listener, connection lifecycle, login state machine, resource-pack flow, StartGame flow, player lifecycle, world sync or gameplay handling.
 
 There is no local `internal/protocol` package while gophertunnel owns packet definitions. MCPE wire helpers live with the MCPE network adapter, and login/session helpers live with the server session code.
@@ -19,7 +21,9 @@ There is no local `internal/protocol` package while gophertunnel owns packet def
 - `internal/server/mcpe_handshake.go`: ServerToClientHandshake JWT salt and P-384 ECDH encryption key derivation.
 - `internal/server/mcpe_router.go`: server-owned packet ID routing.
 - `internal/server/mcpe_player_sync.go`: local player list, AddPlayer spawn packets, actor metadata/motion packets and movement input routing.
+- `internal/server/mcpe_commands.go`: Text chat routing, CommandRequest dispatch, AvailableCommands sending and CommandOutput replies.
 - `internal/server/chunk_publisher.go`: adapter from world chunks to MCPE chunk publisher/update packets.
+- `internal/command`: local command parsing, registry metadata and permission checks.
 - `internal/world`: runtime block state lookup and flat chunk generation.
 
 ## Login Flow
@@ -33,7 +37,9 @@ There is no local `internal/protocol` package while gophertunnel owns packet def
 5. Read the encrypted `ClientToServerHandshake`.
 6. Send encrypted `PlayStatusLoginSuccess` and an empty `ResourcePacksInfo`.
 7. Handle empty resource-pack stack responses.
-8. Send locally built `StartGame`, player list data, actor metadata/motion and follow-up spawn packets.
+8. Send empty `JigsawStructureData` and `VoxelShapes`, matching the `gophertunnel v1.56.x` StartGame prelude.
+9. Send locally built `StartGame`, player list data, actor metadata/motion and follow-up spawn packets.
+10. Send locally built `AvailableCommands` based on the player's current permissions.
 
 The local encryption path is covered by network/server smoke tests. M2 still needs real Bedrock client validation before it can be marked complete.
 
@@ -42,8 +48,10 @@ The local encryption path is covered by network/server smoke tests. M2 still nee
 The runtime world path is split so world generation and packet construction can evolve separately:
 
 - `internal/world.ChunkProvider` owns spawn position and chunk generation.
-- The default provider creates a flat overworld using Dragonfly's block-state and chunk palette encoder.
+- The default provider creates a flat overworld with the local chunk model and Bedrock hashed block network IDs.
 - `internal/server` converts generated chunks to `NetworkChunkPublisherUpdate`, `SetTime`, `SetSpawnPosition`, `LevelChunk` and `SubChunk` packets for the session.
+- Initial `LevelChunk` packets use `SubChunkRequestModeLimited` with biome payloads, so current Bedrock clients request the actual sub-chunks through `SubChunkRequest`.
+- `SubChunk` responses include the encoded sub-chunk payload plus height map and render height map data; height maps are derived from the highest non-air runtime ID in the generated chunk.
 
 ## Player Flow
 
@@ -54,6 +62,12 @@ The runtime world path is split so world generation and packet construction can 
 - The joining client receives a full `PlayerList` snapshot plus its own `SetActorData` and `SetActorMotion`.
 - After `SetLocalPlayerAsInitialised`, spawned peers exchange `AddPlayer`, `SetActorData` and `SetActorMotion`.
 - `PlayerAuthInput` and legacy `MovePlayer` packets update local position/rotation state and broadcast `MovePlayer`; metadata and motion changes broadcast `SetActorData` and `SetActorMotion`.
+
+## Chat And Commands
+
+`Text` packets with chat content are broadcast to spawned players. `CommandRequest` packets are dispatched through the local command registry and answered with `CommandOutput`.
+
+Available commands are filtered by sender permissions. Players currently receive `help` and `list` by default; console has all permissions; `op`/`deop` update an online player's operator state and resend `AvailableCommands`.
 
 ## Debug Logs
 

@@ -20,10 +20,10 @@ func TestFlatGeneratorCreatesSpawnGround(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RuntimeID(grass) returned error: %v", err)
 	}
-	if got := chunk.Native().Block(0, 63, 0, 0); got != grass {
+	if got := chunk.RuntimeID(0, 63, 0, 0); got != grass {
 		t.Fatalf("spawn surface runtime ID = %d, want %d", got, grass)
 	}
-	if got := chunk.Native().Biome(0, 63, 0); got != generator.BiomeData.ID {
+	if got := chunk.BiomeID(0, 63, 0); got != generator.BiomeData.ID {
 		t.Fatalf("spawn biome = %d, want %d", got, generator.BiomeData.ID)
 	}
 	if got := generator.SpawnBlock(); got != (BlockPos{X: 0, Y: 64, Z: 0}) {

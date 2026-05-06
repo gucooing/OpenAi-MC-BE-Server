@@ -15,6 +15,7 @@ import (
 
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 
+	appcommand "gucooing/bds/internal/command"
 	appworld "gucooing/bds/internal/world"
 )
 
@@ -27,6 +28,7 @@ type MCPEOptions struct {
 	OnlineMode   bool
 	Logger       *slog.Logger
 	World        appworld.ChunkProvider
+	Shutdown     func()
 }
 
 type MCPEHandler struct {
@@ -44,6 +46,9 @@ type MCPEHandler struct {
 	playersMu    sync.RWMutex
 	players      map[uint64]*MCPEClient
 	nextID       atomic.Uint64
+	commands     *appcommand.Registry
+	permissions  *permissionManager
+	shutdown     func()
 }
 
 type MCPEConn interface {
@@ -112,7 +117,10 @@ func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {
 		world:        options.World,
 		chunks:       newChunkPublisher(options.World, int32(options.ViewDistance), options.Logger),
 		players:      make(map[uint64]*MCPEClient),
+		permissions:  newPermissionManager(),
+		shutdown:     options.Shutdown,
 	}
+	handler.commands = newDefaultCommands(handler)
 	if _, err := handler.encryptionPrivateKey(); err != nil {
 		return nil, err
 	}

@@ -78,40 +78,50 @@ func TestMCPEClientHandlesLoginResourcePacksAndWorldSync(t *testing.T) {
 	if err := client.HandlePacket(ctx, &packet.ResourcePackClientResponse{Response: packet.PackResponseCompleted}); err != nil {
 		t.Fatalf("HandlePacket(ResourcePackClientResponse Completed) returned error: %v", err)
 	}
-	start := packetAt[*packet.StartGame](t, conn.packets, 4)
+	packetAt[*packet.JigsawStructureData](t, conn.packets, 4)
+	packetAt[*packet.VoxelShapes](t, conn.packets, 5)
+	start := packetAt[*packet.StartGame](t, conn.packets, 6)
 	if start.WorldName != "MCPE Session Test" || start.EntityRuntimeID == 0 {
 		t.Fatalf("StartGame = %+v, want world name and runtime ID", start)
 	}
-	packetAt[*packet.ItemRegistry](t, conn.packets, 5)
-	if pk := packetAt[*packet.PlayerList](t, conn.packets, 6); pk.ActionType != packet.PlayerListActionAdd || len(pk.Entries) != 1 || pk.Entries[0].Username != "HandshakeBot" {
+	if !start.UseBlockNetworkIDHashes {
+		t.Fatalf("StartGame.UseBlockNetworkIDHashes = false, want true")
+	}
+	packetAt[*packet.ItemRegistry](t, conn.packets, 7)
+	if pk := packetAt[*packet.AvailableCommands](t, conn.packets, 8); len(pk.Commands) != 2 {
+		t.Fatalf("AvailableCommands count = %d, want default player commands", len(pk.Commands))
+	}
+	if pk := packetAt[*packet.PlayerList](t, conn.packets, 9); pk.ActionType != packet.PlayerListActionAdd || len(pk.Entries) != 1 || pk.Entries[0].Username != "HandshakeBot" {
 		t.Fatalf("PlayerList = %+v, want single HandshakeBot entry", pk)
 	}
-	if pk := packetAt[*packet.SetActorData](t, conn.packets, 7); pk.EntityRuntimeID != start.EntityRuntimeID {
+	if pk := packetAt[*packet.SetActorData](t, conn.packets, 10); pk.EntityRuntimeID != start.EntityRuntimeID {
 		t.Fatalf("SetActorData runtime ID = %d, want %d", pk.EntityRuntimeID, start.EntityRuntimeID)
 	}
-	if pk := packetAt[*packet.SetActorMotion](t, conn.packets, 8); pk.EntityRuntimeID != start.EntityRuntimeID {
+	if pk := packetAt[*packet.SetActorMotion](t, conn.packets, 11); pk.EntityRuntimeID != start.EntityRuntimeID {
 		t.Fatalf("SetActorMotion runtime ID = %d, want %d", pk.EntityRuntimeID, start.EntityRuntimeID)
 	}
 
 	if err := client.HandlePacket(ctx, &packet.RequestChunkRadius{ChunkRadius: 1}); err != nil {
 		t.Fatalf("HandlePacket(RequestChunkRadius) returned error: %v", err)
 	}
-	if pk := packetAt[*packet.ChunkRadiusUpdated](t, conn.packets, 9); pk.ChunkRadius != 1 {
+	if pk := packetAt[*packet.ChunkRadiusUpdated](t, conn.packets, 12); pk.ChunkRadius != 1 {
 		t.Fatalf("ChunkRadiusUpdated radius = %d, want 1", pk.ChunkRadius)
 	}
-	packetAt[*packet.BiomeDefinitionList](t, conn.packets, 10)
-	packetAt[*packet.CreativeContent](t, conn.packets, 11)
-	packetAt[*packet.NetworkChunkPublisherUpdate](t, conn.packets, 12)
-	if pk := packetAt[*packet.SetTime](t, conn.packets, 13); pk.Time != 0 {
+	packetAt[*packet.BiomeDefinitionList](t, conn.packets, 13)
+	packetAt[*packet.CreativeContent](t, conn.packets, 14)
+	packetAt[*packet.NetworkChunkPublisherUpdate](t, conn.packets, 15)
+	if pk := packetAt[*packet.SetTime](t, conn.packets, 16); pk.Time != 0 {
 		t.Fatalf("SetTime time = %d, want 0", pk.Time)
 	}
-	if pk := packetAt[*packet.SetSpawnPosition](t, conn.packets, 14); pk.SpawnPosition != (gtprotocol.BlockPos{0, 64, 0}) {
+	if pk := packetAt[*packet.SetSpawnPosition](t, conn.packets, 17); pk.SpawnPosition != (gtprotocol.BlockPos{0, 64, 0}) {
 		t.Fatalf("SetSpawnPosition = %+v, want spawn 0,64,0", pk)
 	}
 	for i := 0; i < 9; i++ {
-		packetAt[*packet.LevelChunk](t, conn.packets, 15+i)
+		if pk := packetAt[*packet.LevelChunk](t, conn.packets, 18+i); pk.SubChunkCount != gtprotocol.SubChunkRequestModeLimited {
+			t.Fatalf("LevelChunk %d sub chunk count = %d, want limited request mode", i, pk.SubChunkCount)
+		}
 	}
-	if pk := packetAt[*packet.PlayStatus](t, conn.packets, 24); pk.Status != packet.PlayStatusPlayerSpawn {
+	if pk := packetAt[*packet.PlayStatus](t, conn.packets, 27); pk.Status != packet.PlayStatusPlayerSpawn {
 		t.Fatalf("spawn status = %d, want PlayStatusPlayerSpawn", pk.Status)
 	}
 

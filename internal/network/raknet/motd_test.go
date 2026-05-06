@@ -8,8 +8,8 @@ import (
 func TestPongInfoDataMatchesBetterAltayFormat(t *testing.T) {
 	info := PongInfo{
 		MOTD:             "Local Test",
-		ProtocolVersion:  944,
-		MinecraftVersion: "1.26.10",
+		ProtocolVersion:  975,
+		MinecraftVersion: "1.26.20",
 		OnlinePlayers:    3,
 		MaxPlayers:       20,
 		ServerID:         42,
@@ -18,7 +18,7 @@ func TestPongInfoDataMatchesBetterAltayFormat(t *testing.T) {
 	}
 
 	got := string(info.Data())
-	want := "MCPE;Local Test;944;1.26.10;3;20;42;BetterAltay-Go;Survival;"
+	want := "MCPE;Local Test;975;1.26.20;3;20;42;BetterAltay-Go;Survival;"
 	if got != want {
 		t.Fatalf("PongInfo.Data() = %q, want %q", got, want)
 	}
@@ -27,8 +27,8 @@ func TestPongInfoDataMatchesBetterAltayFormat(t *testing.T) {
 func TestPongInfoEscapesSemicolons(t *testing.T) {
 	info := PongInfo{
 		MOTD:             `Name;`,
-		ProtocolVersion:  944,
-		MinecraftVersion: "1.26.10",
+		ProtocolVersion:  975,
+		MinecraftVersion: "1.26.20",
 		ServerID:         42,
 		ServerName:       `Engine;`,
 		GameMode:         `Survival;`,

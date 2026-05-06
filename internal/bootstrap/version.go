@@ -7,8 +7,8 @@ const (
 	SourceName        = "BetterAltay"
 	SourceBaseVersion = "3.28.0"
 	SourceForkVersion = "1.39.3"
-	MinecraftVersion  = "1.26.10"
-	ProtocolVersion   = 944
+	MinecraftVersion  = "1.26.20"
+	ProtocolVersion   = 975
 	BuildChannel      = "master"
 )
 

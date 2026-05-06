@@ -28,6 +28,8 @@ func newMCPEClientRouter(client *MCPEClient) packetRouter {
 	handlePacketRoute(&router, packet.IDSetLocalPlayerAsInitialised, client.handleSetLocalPlayerAsInitialised)
 	handlePacketRoute(&router, packet.IDPlayerAuthInput, client.handlePlayerAuthInput)
 	handlePacketRoute(&router, packet.IDMovePlayer, client.handleMovePlayer)
+	handlePacketRoute(&router, packet.IDText, client.handleText)
+	handlePacketRoute(&router, packet.IDCommandRequest, client.handleCommandRequest)
 	return router
 }
 
