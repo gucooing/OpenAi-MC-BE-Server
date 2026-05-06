@@ -84,6 +84,10 @@ type MCPEClient struct {
 	packets            packetRouter
 	chunksSent         bool
 	clientCacheEnabled bool
+	loadingScreenOpen  bool
+	loadingScreenID    uint32
+	loadingScreenIDOK  bool
+	inventoryOpen      bool
 }
 
 func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {

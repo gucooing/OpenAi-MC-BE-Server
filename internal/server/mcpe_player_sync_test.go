@@ -105,6 +105,88 @@ func TestMCPEPlayerSyncSpawnsPeersAndBroadcastsMovement(t *testing.T) {
 	}
 }
 
+func TestMCPEPlayerSyncHandlesLoadingScreenAndInteractPackets(t *testing.T) {
+	world, err := appworld.NewFlatGenerator()
+	if err != nil {
+		t.Fatalf("NewFlatGenerator() returned error: %v", err)
+	}
+	handler, err := NewMCPEHandler(MCPEOptions{
+		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ServerName:   "MCPE Interact Test",
+		ServerBrand:  "BetterAltay-Go",
+		GameMode:     "Survival",
+		MaxPlayers:   5,
+		ViewDistance: 1,
+		World:        world,
+	})
+	if err != nil {
+		t.Fatalf("NewMCPEHandler() returned error: %v", err)
+	}
+
+	ctx := context.Background()
+	alice, _, _ := spawnTestClient(t, ctx, handler, "Alice", "7b2d9639-5a8c-4f2f-9d8d-4d9f1e6e1f7a")
+	bob, bobConn, _ := spawnTestClient(t, ctx, handler, "Bob", "fd4c35b1-98c2-4208-9e0e-7d4c30e6dff1")
+
+	if err := bob.HandlePacket(ctx, &packet.ServerBoundLoadingScreen{Type: packet.LoadingScreenTypeStart}); err != nil {
+		t.Fatalf("HandlePacket(ServerBoundLoadingScreen start) returned error: %v", err)
+	}
+	if !bob.loadingScreenOpen {
+		t.Fatalf("loading screen open = false, want true")
+	}
+	if err := bob.HandlePacket(ctx, &packet.ServerBoundLoadingScreen{Type: packet.LoadingScreenTypeEnd}); err != nil {
+		t.Fatalf("HandlePacket(ServerBoundLoadingScreen end) returned error: %v", err)
+	}
+	if bob.loadingScreenOpen {
+		t.Fatalf("loading screen open = true, want false")
+	}
+
+	if err := bob.HandlePacket(ctx, &packet.Interact{
+		ActionType:            packet.InteractActionMouseOverEntity,
+		TargetEntityRuntimeID: alice.runtimeID,
+		Position:              gtprotocol.Option(mgl32.Vec3{0.1, 1.2, 0.3}),
+	}); err != nil {
+		t.Fatalf("HandlePacket(Interact mouse-over) returned error: %v", err)
+	}
+	if bob.player.target != alice.runtimeID {
+		t.Fatalf("mouse-over target = %d, want Alice runtime ID %d", bob.player.target, alice.runtimeID)
+	}
+
+	bob.state = stateAwaitInitialised
+	beforeInventory := len(bobConn.packets)
+	if err := bob.HandlePacket(ctx, &packet.Interact{ActionType: packet.InteractActionOpenInventory}); err != nil {
+		t.Fatalf("HandlePacket(Interact open inventory) returned error: %v", err)
+	}
+	bob.state = stateSpawned
+	pk := packetAt[*packet.ContainerOpen](t, bobConn.packets, beforeInventory)
+	if pk.WindowID != 0 || pk.ContainerType != playerInventoryType || pk.ContainerEntityUniqueID != -1 {
+		t.Fatalf("ContainerOpen = %+v, want self inventory container", pk)
+	}
+	if err := bob.HandlePacket(ctx, &packet.Interact{ActionType: packet.InteractActionOpenInventory}); err != nil {
+		t.Fatalf("HandlePacket(duplicate Interact open inventory) returned error: %v", err)
+	}
+	if got, want := len(bobConn.packets), beforeInventory+1; got != want {
+		t.Fatalf("packet count after duplicate inventory open = %d, want %d", got, want)
+	}
+
+	if err := bob.HandlePacket(ctx, &packet.ContainerClose{WindowID: 0, ContainerType: playerInventoryType}); err != nil {
+		t.Fatalf("HandlePacket(ContainerClose inventory) returned error: %v", err)
+	}
+	if bob.inventoryOpen {
+		t.Fatalf("inventory open = true, want false after ContainerClose")
+	}
+	closeAck := packetAt[*packet.ContainerClose](t, bobConn.packets, beforeInventory+1)
+	if closeAck.WindowID != 0 || closeAck.ServerSide {
+		t.Fatalf("ContainerClose ack = %+v, want client-side close ack for inventory", closeAck)
+	}
+	bob.inventoryOpen = true
+	if err := bob.HandlePacket(ctx, &packet.ContainerClose{WindowID: 0xff}); err != nil {
+		t.Fatalf("HandlePacket(ContainerClose mixed chat/inventory) returned error: %v", err)
+	}
+	if bob.inventoryOpen {
+		t.Fatalf("inventory open = true, want false after mixed ContainerClose")
+	}
+}
+
 func spawnTestClient(t *testing.T, ctx context.Context, handler *MCPEHandler, name, identity string) (*MCPEClient, *recordingMCPEConn, *packet.StartGame) {
 	t.Helper()
 

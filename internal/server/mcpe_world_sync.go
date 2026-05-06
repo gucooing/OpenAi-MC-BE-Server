@@ -41,6 +41,29 @@ func (client *MCPEClient) handleSubChunkRequest(ctx context.Context, pk *packet.
 	return client.handler.chunks.SendSubChunks(ctx, client.conn, pk)
 }
 
+func (client *MCPEClient) handleServerBoundLoadingScreen(_ context.Context, pk *packet.ServerBoundLoadingScreen) error {
+	id, hasID := pk.LoadingScreenID.Value()
+	if hasID && client.loadingScreenIDOK && id != client.loadingScreenID {
+		return fmt.Errorf("loading screen ID mismatch: expected %d, got %d", client.loadingScreenID, id)
+	}
+	switch pk.Type {
+	case packet.LoadingScreenTypeStart:
+		client.loadingScreenOpen = true
+		if hasID {
+			client.loadingScreenID = id
+			client.loadingScreenIDOK = true
+		}
+	case packet.LoadingScreenTypeEnd:
+		client.loadingScreenOpen = false
+		client.loadingScreenIDOK = false
+	case packet.LoadingScreenTypeUnknown:
+		return nil
+	default:
+		return fmt.Errorf("unknown loading screen type %d", pk.Type)
+	}
+	return nil
+}
+
 func (client *MCPEClient) handleSetLocalPlayerAsInitialised(_ context.Context, pk *packet.SetLocalPlayerAsInitialised) error {
 	if pk.EntityRuntimeID != client.runtimeID {
 		return fmt.Errorf("entity runtime ID mismatch: expected %d, got %d", client.runtimeID, pk.EntityRuntimeID)

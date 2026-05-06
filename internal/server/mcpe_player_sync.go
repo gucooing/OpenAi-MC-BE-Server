@@ -17,6 +17,7 @@ import (
 const (
 	playerCollisionWidth  float32 = 0.6
 	playerCollisionHeight float32 = 1.8
+	playerInventoryType   byte    = 0xff
 )
 
 type mcpePlayerState struct {
@@ -27,6 +28,7 @@ type mcpePlayerState struct {
 	yaw      float32
 	headYaw  float32
 	onGround bool
+	target   uint64
 	metadata map[uint32]any
 }
 
@@ -282,8 +284,78 @@ func (client *MCPEClient) handleMovePlayer(_ context.Context, pk *packet.MovePla
 	return nil
 }
 
+func (client *MCPEClient) handleInteract(_ context.Context, pk *packet.Interact) error {
+	if client.runtimeID == 0 {
+		return nil
+	}
+	switch pk.ActionType {
+	case packet.InteractActionMouseOverEntity:
+		return client.handleMouseOverEntity(pk)
+	case packet.InteractActionOpenInventory:
+		return client.handleOpenInventory()
+	case packet.InteractActionLeaveVehicle:
+		return client.handleLeaveVehicle(pk)
+	default:
+		return fmt.Errorf("unexpected Interact action %d", pk.ActionType)
+	}
+}
+
+func (client *MCPEClient) handleMouseOverEntity(pk *packet.Interact) error {
+	if pk.TargetEntityRuntimeID != 0 && !client.handler.playerExists(pk.TargetEntityRuntimeID) {
+		return nil
+	}
+	if position, ok := pk.Position.Value(); ok && !finiteVec3(position) {
+		return fmt.Errorf("invalid Interact mouse-over position")
+	}
+	client.player.target = pk.TargetEntityRuntimeID
+	return nil
+}
+
+func (client *MCPEClient) handleOpenInventory() error {
+	if client.state < stateAwaitInitialised || client.inventoryOpen {
+		return nil
+	}
+	client.inventoryOpen = true
+	return client.conn.WritePacket(&packet.ContainerOpen{
+		WindowID:                0,
+		ContainerType:           playerInventoryType,
+		ContainerPosition:       gtprotocol.BlockPos{int32(client.player.position.X()), int32(client.player.position.Y()), int32(client.player.position.Z())},
+		ContainerEntityUniqueID: -1,
+	})
+}
+
+func (client *MCPEClient) handleContainerClose(_ context.Context, pk *packet.ContainerClose) error {
+	switch pk.WindowID {
+	case 0:
+		client.inventoryOpen = false
+		return client.conn.WritePacket(&packet.ContainerClose{WindowID: pk.WindowID})
+	case 0xff:
+		client.inventoryOpen = false
+		return nil
+	default:
+		return fmt.Errorf("unexpected ContainerClose window=%d type=%d", pk.WindowID, pk.ContainerType)
+	}
+}
+
+func (client *MCPEClient) handleLeaveVehicle(pk *packet.Interact) error {
+	if position, ok := pk.Position.Value(); ok {
+		if !finiteVec3(position) {
+			return fmt.Errorf("invalid Interact leave-vehicle position")
+		}
+		client.player.position = position
+	}
+	return client.broadcastToSpawnedPeers(client.movePlayerPacket(packet.MoveModeNormal, 0))
+}
+
 func (client *MCPEClient) broadcastToSpawnedPeers(pk packet.Packet) error {
 	return writePacketToClients(client.handler.spawnedPlayersExcept(client), pk)
+}
+
+func (handler *MCPEHandler) playerExists(runtimeID uint64) bool {
+	handler.playersMu.RLock()
+	defer handler.playersMu.RUnlock()
+	_, ok := handler.players[runtimeID]
+	return ok
 }
 
 func (client *MCPEClient) updatePlayerMetadataFromInput(input gtprotocol.Bitset) bool {
