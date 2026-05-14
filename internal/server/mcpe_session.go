@@ -16,39 +16,44 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/protocol/packet"
 
 	appcommand "gucooing/bds/internal/command"
+	appresourcepack "gucooing/bds/internal/resourcepack"
 	appworld "gucooing/bds/internal/world"
 )
 
 type MCPEOptions struct {
-	ServerName   string
-	ServerBrand  string
-	GameMode     string
-	MaxPlayers   int
-	ViewDistance int
-	OnlineMode   bool
-	Logger       *slog.Logger
-	World        appworld.ChunkProvider
-	Shutdown     func()
+	ServerName           string
+	ServerBrand          string
+	GameMode             string
+	MaxPlayers           int
+	ViewDistance         int
+	OnlineMode           bool
+	Logger               *slog.Logger
+	World                appworld.ChunkProvider
+	ResourcePacks        []appresourcepack.Pack
+	TexturePacksRequired bool
+	Shutdown             func()
 }
 
 type MCPEHandler struct {
-	logger       *slog.Logger
-	serverName   string
-	serverBrand  string
-	gameMode     string
-	maxPlayers   int
-	viewDistance int
-	onlineMode   bool
-	world        appworld.ChunkProvider
-	chunks       chunkPublisher
-	keyMu        sync.Mutex
-	privateKey   *ecdsa.PrivateKey
-	playersMu    sync.RWMutex
-	players      map[uint64]*MCPEClient
-	nextID       atomic.Uint64
-	commands     *appcommand.Registry
-	permissions  *permissionManager
-	shutdown     func()
+	logger               *slog.Logger
+	serverName           string
+	serverBrand          string
+	gameMode             string
+	maxPlayers           int
+	viewDistance         int
+	onlineMode           bool
+	world                appworld.ChunkProvider
+	chunks               chunkPublisher
+	keyMu                sync.Mutex
+	privateKey           *ecdsa.PrivateKey
+	playersMu            sync.RWMutex
+	players              map[uint64]*MCPEClient
+	nextID               atomic.Uint64
+	commands             *appcommand.Registry
+	permissions          *permissionManager
+	resourcePacks        []appresourcepack.Pack
+	texturePacksRequired bool
+	shutdown             func()
 }
 
 type MCPEConn interface {
@@ -75,20 +80,22 @@ const (
 )
 
 type MCPEClient struct {
-	handler            *MCPEHandler
-	conn               MCPEConn
-	state              mcpeSessionState
-	runtimeID          uint64
-	login              loginData
-	player             mcpePlayerState
-	inventory          *mcpeInventory
-	packets            packetRouter
-	chunksSent         bool
-	clientCacheEnabled bool
-	loadingScreenOpen  bool
-	loadingScreenID    uint32
-	loadingScreenIDOK  bool
-	inventoryOpen      bool
+	handler               *MCPEHandler
+	conn                  MCPEConn
+	state                 mcpeSessionState
+	runtimeID             uint64
+	login                 loginData
+	player                mcpePlayerState
+	inventory             *mcpeInventory
+	resourceDownloads     appresourcepack.Queue
+	resourcePackStackSent bool
+	packets               packetRouter
+	chunksSent            bool
+	clientCacheEnabled    bool
+	loadingScreenOpen     bool
+	loadingScreenID       uint32
+	loadingScreenIDOK     bool
+	inventoryOpen         bool
 }
 
 func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {
@@ -111,19 +118,25 @@ func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {
 		}
 		options.World = world
 	}
+	resourcePacks, err := appresourcepack.Normalize(options.ResourcePacks)
+	if err != nil {
+		return nil, err
+	}
 	handler := &MCPEHandler{
-		logger:       options.Logger,
-		serverName:   options.ServerName,
-		serverBrand:  options.ServerBrand,
-		gameMode:     options.GameMode,
-		maxPlayers:   options.MaxPlayers,
-		viewDistance: options.ViewDistance,
-		onlineMode:   options.OnlineMode,
-		world:        options.World,
-		chunks:       newChunkPublisher(options.World, int32(options.ViewDistance), options.Logger),
-		players:      make(map[uint64]*MCPEClient),
-		permissions:  newPermissionManager(),
-		shutdown:     options.Shutdown,
+		logger:               options.Logger,
+		serverName:           options.ServerName,
+		serverBrand:          options.ServerBrand,
+		gameMode:             options.GameMode,
+		maxPlayers:           options.MaxPlayers,
+		viewDistance:         options.ViewDistance,
+		onlineMode:           options.OnlineMode,
+		world:                options.World,
+		chunks:               newChunkPublisher(options.World, int32(options.ViewDistance), options.Logger),
+		players:              make(map[uint64]*MCPEClient),
+		permissions:          newPermissionManager(),
+		resourcePacks:        resourcePacks,
+		texturePacksRequired: options.TexturePacksRequired,
+		shutdown:             options.Shutdown,
 	}
 	handler.commands = newDefaultCommands(handler)
 	if _, err := handler.encryptionPrivateKey(); err != nil {
@@ -134,10 +147,11 @@ func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {
 
 func NewMCPEClient(handler *MCPEHandler, conn MCPEConn) *MCPEClient {
 	client := &MCPEClient{
-		handler:   handler,
-		conn:      conn,
-		state:     stateAwaitNetworkSettings,
-		inventory: newMCPEInventory(),
+		handler:           handler,
+		conn:              conn,
+		state:             stateAwaitNetworkSettings,
+		inventory:         newMCPEInventory(),
+		resourceDownloads: appresourcepack.NewQueue(handler.resourcePacks),
 	}
 	client.packets = newMCPEClientRouter(client)
 	return client

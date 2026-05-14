@@ -22,6 +22,8 @@ func newMCPEClientRouter(client *MCPEClient) packetRouter {
 	handlePacketRoute(&router, packet.IDLogin, client.handleLogin)
 	handlePacketRoute(&router, packet.IDClientToServerHandshake, client.handleClientToServerHandshake)
 	handlePacketRoute(&router, packet.IDResourcePackClientResponse, client.handleResourcePackClientResponse)
+	handlePacketRoute(&router, packet.IDResourcePackChunkRequest, client.handleResourcePackChunkRequest)
+	handlePacketRoute(&router, packet.IDResourcePacksReadyForValidation, client.handleResourcePacksReadyForValidation)
 	handlePacketRoute(&router, packet.IDClientCacheStatus, client.handleClientCacheStatus)
 	handlePacketRoute(&router, packet.IDRequestChunkRadius, client.handleRequestChunkRadius)
 	handlePacketRoute(&router, packet.IDSubChunkRequest, client.handleSubChunkRequest)

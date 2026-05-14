@@ -35,8 +35,8 @@ There is no local `internal/protocol` package while gophertunnel owns packet def
 3. Read `Login`, parse the login chain through `internal/server/mcpe_login.go`, and apply local online/offline policy.
 4. Send a locally built `ServerToClientHandshake` containing a signed JWT salt, derive the shared encryption key from the client login public key and enable encrypted batch IO.
 5. Read the encrypted `ClientToServerHandshake`.
-6. Send encrypted `PlayStatusLoginSuccess` and an empty `ResourcePacksInfo`.
-7. Handle empty resource-pack stack responses.
+6. Send encrypted `PlayStatusLoginSuccess` and `ResourcePacksInfo` built from the configured resource-pack set.
+7. Handle `ResourcePackClientResponse`, `ResourcePackChunkRequest`, and `ResourcePacksReadyForValidation`; empty pack sets can skip the download branch.
 8. Send empty `JigsawStructureData` and `VoxelShapes`, matching the `gophertunnel v1.56.x` StartGame prelude.
 9. Send locally built `StartGame`, player list data, actor metadata/motion and follow-up spawn packets.
 10. Send locally built `AvailableCommands` based on the player's current permissions.

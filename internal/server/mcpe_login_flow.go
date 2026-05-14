@@ -73,8 +73,8 @@ func (client *MCPEClient) handleClientToServerHandshake(_ context.Context, _ *pa
 	if err := client.conn.WritePacket(&packet.PlayStatus{Status: packet.PlayStatusLoginSuccess}); err != nil {
 		return fmt.Errorf("send PlayStatus login success: %w", err)
 	}
-	if err := client.conn.WritePacket(&packet.ResourcePacksInfo{}); err != nil {
-		return fmt.Errorf("send ResourcePacksInfo: %w", err)
+	if err := client.sendResourcePackInfo(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -94,33 +94,9 @@ func (client *MCPEClient) serverHandshake(loginData loginData) (*packet.ServerTo
 	return newServerHandshake(loginData.Auth.PublicKey, privateKey, salt)
 }
 
-func (client *MCPEClient) handleResourcePackClientResponse(ctx context.Context, pk *packet.ResourcePackClientResponse) error {
-	switch pk.Response {
-	case packet.PackResponseSendPacks:
-		if len(pk.PacksToDownload) != 0 {
-			return fmt.Errorf("resource pack downloads are not implemented")
-		}
-		return client.sendResourcePackStack()
-	case packet.PackResponseAllPacksDownloaded:
-		return client.sendResourcePackStack()
-	case packet.PackResponseCompleted:
-		return client.startGame(ctx)
-	case packet.PackResponseRefused:
-		return fmt.Errorf("client refused resource packs")
-	default:
-		return fmt.Errorf("unknown resource pack response %d", pk.Response)
-	}
-}
-
 func (client *MCPEClient) handleClientCacheStatus(_ context.Context, pk *packet.ClientCacheStatus) error {
 	client.clientCacheEnabled = pk.Enabled
 	return nil
-}
-
-func (client *MCPEClient) sendResourcePackStack() error {
-	return client.conn.WritePacket(&packet.ResourcePackStack{
-		BaseGameVersion: gtprotocol.CurrentVersion,
-	})
 }
 
 func (client *MCPEClient) startGame(_ context.Context) error {
