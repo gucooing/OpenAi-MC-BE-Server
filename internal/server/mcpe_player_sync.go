@@ -48,8 +48,6 @@ func (client *MCPEClient) initPlayerState() error {
 
 func (handler *MCPEHandler) addPlayer(client *MCPEClient) []*MCPEClient {
 	handler.playersMu.Lock()
-	defer handler.playersMu.Unlock()
-
 	players := make([]*MCPEClient, 0, len(handler.players))
 	for _, other := range handler.players {
 		if other != client {
@@ -58,7 +56,56 @@ func (handler *MCPEHandler) addPlayer(client *MCPEClient) []*MCPEClient {
 	}
 	handler.players[client.runtimeID] = client
 	sortClientsByRuntimeID(players)
+	handler.playersMu.Unlock()
+
+	if handler.playerJoined != nil {
+		handler.playerJoined(client)
+	}
 	return players
+}
+
+func (handler *MCPEHandler) removePlayer(client *MCPEClient) {
+	if client.runtimeID == 0 {
+		return
+	}
+
+	handler.playersMu.Lock()
+	if handler.players[client.runtimeID] != client {
+		handler.playersMu.Unlock()
+		return
+	}
+	delete(handler.players, client.runtimeID)
+	players := make([]*MCPEClient, 0, len(handler.players))
+	for _, other := range handler.players {
+		if other.state == stateSpawned {
+			players = append(players, other)
+		}
+	}
+	handler.playersMu.Unlock()
+
+	sortClientsByRuntimeID(players)
+	removeEntry := gtprotocol.PlayerListEntry{UUID: client.player.uuid}
+	_ = writePacketToClients(players, &packet.PlayerList{
+		ActionType: packet.PlayerListActionRemove,
+		Entries:    []gtprotocol.PlayerListEntry{removeEntry},
+	})
+	_ = writePacketToClients(players, &packet.RemoveActor{EntityUniqueID: int64(client.runtimeID)})
+	if client.state == stateSpawned {
+		_ = writePacketToClients(players, &packet.Text{
+			TextType: packet.TextTypeTranslation,
+			Message:  "multiplayer.player.left",
+			Parameters: []string{
+				client.login.Identity.DisplayName,
+			},
+		})
+	}
+	client.state = stateDisconnected
+	if handler.playerLeft != nil {
+		handler.playerLeft(client)
+	}
+	if handler.logger != nil {
+		handler.logger.Info("mcpe player disconnected", "remote", client.conn.RemoteAddr(), "display_name", client.login.Identity.DisplayName)
+	}
 }
 
 func (handler *MCPEHandler) allPlayers() []*MCPEClient {

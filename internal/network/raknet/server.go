@@ -31,6 +31,7 @@ type Server struct {
 	done     chan struct{}
 	ctx      context.Context
 	cancel   context.CancelFunc
+	pongInfo PongInfo
 }
 
 func Listen(options Options) (*Server, error) {
@@ -43,12 +44,6 @@ func Listen(options Options) (*Server, error) {
 		return nil, err
 	}
 
-	pongInfo := options.PongInfo
-	if pongInfo.ServerID == 0 {
-		pongInfo.ServerID = listener.ID()
-	}
-	listener.PongData(pongInfo.Data())
-
 	server := &Server{
 		listener: listener,
 		logger:   options.Logger,
@@ -57,6 +52,7 @@ func Listen(options Options) (*Server, error) {
 		done:     make(chan struct{}),
 	}
 	server.ctx, server.cancel = context.WithCancel(context.Background())
+	server.SetPongInfo(options.PongInfo)
 	go server.acceptLoop()
 	return server, nil
 }
@@ -87,6 +83,17 @@ func (server *Server) Close() error {
 	server.wg.Wait()
 	<-server.done
 	return err
+}
+
+func (server *Server) SetPongInfo(info PongInfo) {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	if info.ServerID == 0 {
+		info.ServerID = server.listener.ID()
+	}
+	server.pongInfo = info
+	server.listener.PongData(info.Data())
 }
 
 func (server *Server) acceptLoop() {

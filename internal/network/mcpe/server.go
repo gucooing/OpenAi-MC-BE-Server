@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 
 	gtprotocol "github.com/sandertv/gophertunnel/minecraft/protocol"
 	networkraknet "gucooing/bds/internal/network/raknet"
@@ -18,12 +19,15 @@ type Options struct {
 	MaxPlayers  int
 	Logger      *slog.Logger
 	NewClient   ClientFactory
+	OnlineCount func() int
 }
 
 type Server struct {
 	transport *networkraknet.Server
 	logger    *slog.Logger
 	newClient ClientFactory
+	pongMu    sync.Mutex
+	pongInfo  networkraknet.PongInfo
 }
 
 func Listen(options Options) (*Server, error) {
@@ -46,17 +50,21 @@ func Listen(options Options) (*Server, error) {
 		return nil, fmt.Errorf("mcpe client factory cannot be nil")
 	}
 	server := &Server{logger: options.Logger, newClient: options.NewClient}
+	server.pongInfo = networkraknet.PongInfo{
+		MOTD:             options.ServerName,
+		ProtocolVersion:  gtprotocol.CurrentProtocol,
+		MinecraftVersion: gtprotocol.CurrentVersion,
+		MaxPlayers:       options.MaxPlayers,
+		ServerName:       options.ServerBrand,
+		GameMode:         options.GameMode,
+	}
+	if options.OnlineCount != nil {
+		server.pongInfo.OnlinePlayers = options.OnlineCount()
+	}
 	transport, err := networkraknet.Listen(networkraknet.Options{
-		Address: options.Address,
-		Logger:  options.Logger,
-		PongInfo: networkraknet.PongInfo{
-			MOTD:             options.ServerName,
-			ProtocolVersion:  gtprotocol.CurrentProtocol,
-			MinecraftVersion: gtprotocol.CurrentVersion,
-			MaxPlayers:       options.MaxPlayers,
-			ServerName:       options.ServerBrand,
-			GameMode:         options.GameMode,
-		},
+		Address:        options.Address,
+		Logger:         options.Logger,
+		PongInfo:       server.pongInfo,
 		SessionHandler: server.serveSession,
 	})
 	if err != nil {
@@ -72,6 +80,19 @@ func (server *Server) Addr() net.Addr {
 
 func (server *Server) Close() error {
 	return server.transport.Close()
+}
+
+func (server *Server) UpdateOnlinePlayers(online int) {
+	if online < 0 {
+		online = 0
+	}
+	server.pongMu.Lock()
+	defer server.pongMu.Unlock()
+
+	info := server.pongInfo
+	info.OnlinePlayers = online
+	server.pongInfo = info
+	server.transport.SetPongInfo(info)
 }
 
 func (server *Server) serveSession(ctx context.Context, conn net.Conn) error {

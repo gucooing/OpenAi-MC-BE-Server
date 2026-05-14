@@ -16,6 +16,7 @@ There is no local `internal/protocol` package while gophertunnel owns packet def
 - `internal/network/mcpe/server.go`: MCPE listener boundary that wires RakNet sessions to a server-provided packet client.
 - `internal/network/mcpe/codec.go`: MCPE packet encode/decode, batch framing, compression and encrypted batch checksum/cipher state.
 - `internal/network/mcpe/session.go`: connection adapter for MCPE batch IO, compression and encryption.
+- `internal/server/server.go`: core server runtime, listener ownership, tick loop, main-thread task queue and runtime diagnostics.
 - `internal/server/mcpe_*.go`: local NetworkSettings, Login, resource-pack, StartGame, spawn and world-sync state.
 - `internal/server/mcpe_login.go`: login request parsing.
 - `internal/server/mcpe_handshake.go`: ServerToClientHandshake JWT salt and P-384 ECDH encryption key derivation.
@@ -62,6 +63,7 @@ The runtime world path is split so world generation and packet construction can 
 - The joining client receives a full `PlayerList` snapshot plus its own `SetActorData` and `SetActorMotion`.
 - After `SetLocalPlayerAsInitialised`, spawned peers exchange `AddPlayer`, `SetActorData` and `SetActorMotion`.
 - `PlayerAuthInput` and legacy `MovePlayer` packets update local position/rotation state and broadcast `MovePlayer`; metadata and motion changes broadcast `SetActorData` and `SetActorMotion`.
+- When the network session ends, the server marks the MCPE client disconnected, removes it from the live player table and broadcasts `PlayerList` removal, `RemoveActor` and a leave message to remaining spawned players.
 
 ## Chat And Commands
 

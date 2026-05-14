@@ -204,14 +204,14 @@ bds/
 
 | ID | 任务 | 优先级 | 状态 | 产出/验收 | 完成情况 | 备注 | 需补充 |
 |---|---|---|---|---|---|---|---|
-| E-001 | 实现 Server 核心对象 | P0 | TODO | 管理配置、日志、网络、世界、玩家、命令 |  | 对标 `Server.php` | 否 |
-| E-002 | 实现 tick loop | P0 | TODO | 固定 20 TPS，能统计 tick time |  | 后续性能指标基础 | 否 |
-| E-003 | 实现主线程任务队列 | P1 | TODO | 跨 goroutine 操作回到主 loop |  | 避免数据竞态 | 否 |
-| E-004 | 实现 Player session 状态机 | P0 | TODO | Handshaking/Login/Spawned/Disconnected |  | 和网络层解耦 | 否 |
-| E-005 | 实现玩家加入/离开流程 | P0 | TODO | 广播加入离开、保存基础数据 |  | M3/M6 必需 | 否 |
-| E-006 | 实现 MOTD 与 Query 基础信息 | P1 | TODO | 在线人数、版本、协议、世界名 |  |  | 否 |
-| E-007 | 实现崩溃报告/错误诊断 | P2 | TODO | panic 时输出版本、goroutine、玩家数 |  | 对标 CrashDump | 否 |
-| E-008 | 实现内存/性能守护 | P2 | TODO | TPS、内存、goroutine、网络队列指标 |  | 对标 MemoryManager/Timings | 否 |
+| E-001 | 实现 Server 核心对象 | P0 | REVIEW | 管理配置、日志、网络、世界、玩家、命令 | 新增 `internal/server.Server`，由核心对象持有配置、日志、MCPE handler、网络 listener、世界 provider、玩家表和命令入口；`bootstrap` 退回到参数/配置/日志和进程关闭外壳 | 对标 `Server.php` 的最小核心；插件、事件和完整持久化后续阶段继续扩展 | 否 |
+| E-002 | 实现 tick loop | P0 | REVIEW | 固定 20 TPS，能统计 tick time | `Server.Start` 启动 20 TPS tick loop，记录 tick 数、最后 tick 耗时和 TPS 平滑值，测试覆盖 tick 推进 | 当前 tick loop 先承载生命周期和任务队列，世界/实体 tick 会在 G/H/J 后续接入 | 否 |
+| E-003 | 实现主线程任务队列 | P1 | REVIEW | 跨 goroutine 操作回到主 loop | 新增 `Server.Submit` 有界队列并在核心 loop 中执行，任务 panic 会记录错误而不直接杀死 runtime；测试覆盖提交任务被执行 | 后续世界、实体、插件 API 需要统一走此队列收束并发所有权 | 否 |
+| E-004 | 实现 Player session 状态机 | P0 | REVIEW | Handshaking/Login/Spawned/Disconnected | MCPE 状态机补齐 `stateDisconnected`，网络 session 结束时通过 `DisconnectAware` 回调到 server 会话；断开后忽略后续包 | Handshaking/Login/Spawned 仍沿用本地 MCPE state machine；真实客户端异常断线仍需压测 | 需补充真实客户端断线验收 |
+| E-005 | 实现玩家加入/离开流程 | P0 | REVIEW | 广播加入离开、保存基础数据 | 玩家生成后向已生成玩家广播加入翻译消息；session 断开会从玩家表移除，广播 PlayerList remove、RemoveActor 和离开翻译消息；新增 `PlayerStore` 钩子保存 UUID/name/XUID/位置/旋转/速度/lastSeen 快照 | 磁盘玩家数据格式尚未决定，当前只提供生命周期保存钩子；多人真实断线仍需验收 | 需补充真实客户端多人验收 |
+| E-006 | 实现 MOTD 与 Query 基础信息 | P1 | REVIEW | 在线人数、版本、协议、世界名 | RakNet/MCPE listener 支持运行时刷新 pong 数据；玩家加入/离开时更新 MOTD 在线人数；`Server.Info()` 提供服务器名、品牌、协议、MC 版本、游戏模式、在线人数、最大人数和地址快照 | 当前覆盖 Bedrock server list/MOTD 和本地 Query 信息快照，尚未实现额外 Query 协议扩展 | 否 |
+| E-007 | 实现崩溃报告/错误诊断 | P2 | REVIEW | panic 时输出版本、goroutine、玩家数 | 核心 runtime panic 时记录版本、uptime、tick、在线人数和 goroutine 数；主线程任务 panic 独立记录，避免单个任务直接击穿 loop | 这是最小诊断；完整 CrashDump 文件、堆栈归档和崩溃保存留给后续 P/O | 否 |
+| E-008 | 实现内存/性能守护 | P2 | REVIEW | TPS、内存、goroutine、网络队列指标 | `Server.Stats()` 暴露 uptime、tick、last tick time、TPS、在线人数、goroutine、Alloc、HeapInuse 和任务队列长度/容量；测试覆盖指标可用 | 目前是基础观测面，不含阈值告警、自动 GC 策略或长稳趋势记录 | 否 |
 
 ### 6.6 阶段 F：配置、语言和资源
 
@@ -369,14 +369,14 @@ bds/
 
 | 源模块 | 文件数 | Go 目标模块 | 状态 | 完成情况 | 备注 | 需补充 |
 |---|---:|---|---|---|---|---|
-| root constants/classes | 13 | `internal/bootstrap`、`internal/server` | TODO |  | Server、Player、PocketMine、VersionInfo 等 | 否 |
-| `network` | 382 | `internal/network`、`internal/server` | DOING | 已完成 RakNet 初始适配、UDP 监听、unconnected ping/pong、session 生命周期、packet/batch codec、本地 MCPE session 初版、本地加密握手和玩家同步核心包路由；已移除 gophertunnel `minecraft.Listener` 运行时路径、旧 debug session 路径和空转 `internal/protocol` 包 | 真实 Bedrock 客户端验收、多玩家稳定性和后续玩法包处理仍未完成 | 需补充真实客户端测试 |
+| root constants/classes | 13 | `internal/bootstrap`、`internal/server` | DOING | 已建立版本信息、bootstrap 外壳和 `internal/server.Server` 核心生命周期对象；Server 负责 listener、tick loop、任务队列、玩家/命令入口、Stats/Info 与最小崩溃诊断 | Player 公共 API、PocketMine 风格静态入口和完整 Server API 仍待后续设计 | 否 |
+| `network` | 382 | `internal/network`、`internal/server` | DOING | 已完成 RakNet 初始适配、UDP 监听、unconnected ping/pong、session 生命周期、packet/batch codec、本地 MCPE session 初版、本地加密握手、玩家同步核心包路由、session 断开回调和 MOTD 在线人数刷新；已移除 gophertunnel `minecraft.Listener` 运行时路径、旧 debug session 路径和空转 `internal/protocol` 包 | 真实 Bedrock 客户端验收、多玩家稳定性和后续玩法包处理仍未完成 | 需补充真实客户端测试 |
 | `block` | 208 | `internal/block` | TODO |  | 方块状态、碰撞、更新、掉落 | 需补充 runtime ID 映射 |
 | `item` | 174 | `internal/item` | TODO |  | 物品注册表、工具、食物、附魔 | 需补充物品映射 |
 | `level` | 144 | `internal/world` | DOING | 已建立可替换 `ChunkProvider`、默认平坦世界生成器、基础 Chunk 包装和区块网络编码测试 | 世界加载/保存、tick、动态区块调度和旧格式兼容仍未实现 | 需确认存储格式 |
 | `event` | 127 | `internal/event` | TODO |  | 事件总线和核心事件 | 否 |
 | `entity` | 119 | `internal/entity`、`internal/server` | DOING | 已在 `internal/server` 建立 MCPE 玩家同步状态和 AddPlayer/MovePlayer/PlayerList/SetActorData/SetActorMotion 发包；完整 Entity/Player 领域模块仍未抽取 | 玩家、移动、伤害、生物 | 否 |
-| `command` | 65 | `internal/command` | TODO |  | 命令系统和默认命令 | 否 |
+| `command` | 65 | `internal/command`、`internal/server` | DOING | 已建立最小命令注册表、权限过滤、控制台入口、Text/CommandRequest/AvailableCommands/CommandOutput 路由和 `help/list/say/stop/op/deop` 默认命令 | 完整命令参数类型、选择器、权限树和插件命令仍待后续 | 否 |
 | `lang` | 46 | `internal/lang` | TODO |  | locale ini、文本容器 | 否 |
 | `inventory` | 44 | `internal/inventory` | TODO |  | 背包、窗口、交易、合成 | 需补充协议测试 |
 | `resources` | 25 | `internal/resources` 或 `assets` | TODO |  | 方块/物品/配方/实体资源 | 需盘点 |
@@ -388,8 +388,8 @@ bds/
 | `permission` | 11 | `internal/permission` | TODO |  | OP、Ban、Permission | 否 |
 | `metadata` | 7 | `internal/entity/metadata` | TODO |  | Actor metadata | 否 |
 | `maps` | 5 | `internal/maps` | TODO |  | 可后置 | 否 |
-| `resourcepacks` | 5 | `internal/resourcepack` | TODO |  | 资源包流程 | 否 |
-| `timings` | 2 | `internal/metrics` | TODO |  | TPS/性能统计 | 否 |
+| `resourcepacks` | 5 | `internal/resourcepack`、`internal/server` | REVIEW | 已建立资源包 Pack/Queue 模型，支持 ResourcePacksInfo/Stack、ChunkRequest 和 ReadyForValidation 流程 | 真实客户端下载链路仍待验收 | 否 |
+| `timings` | 2 | `internal/server`、后续 `internal/metrics` | DOING | `Server.Stats()` 已暴露 uptime、tick、last tick time、TPS、在线人数、goroutine、内存和任务队列指标 | 完整 Timings/指标导出、阈值告警和长稳记录仍待后续 | 否 |
 | `updater` | 2 | `internal/updater` 或删除 | DEFERRED |  | Go 重写初期不需要自动更新 | 待确认 |
 | `wizard` | 1 | `internal/bootstrap` | DEFERRED |  | 初期可用默认配置替代 | 否 |
 
@@ -446,6 +446,7 @@ bds/
 | 2026-05-06 | D-006/M3/M6 | 玩家同步核心包 smoke test | 通过 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe -count=1 -v`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 PlayerList 自身/全量同步、AddPlayer 同步到双方、SetActorData、SetActorMotion、PlayerAuthInput 位置/旋转/冲刺元数据广播和 legacy MovePlayer 广播；真实 Bedrock 客户端多人验收仍待补充 |
 | 2026-05-06 | D-006/真实客户端未处理包补齐 | 真实日志回归与 Go 测试 | 通过 | `go test ./internal/server -count=1`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 针对真实客户端日志中的 `ServerBoundLoadingScreen` state 5、`Interact` state 5/6 补齐本地路由：加载屏 start/end 状态记录与可选 ID 校验、鼠标悬停玩家目标记录、自带背包 ContainerOpen、重复打开防抖、ContainerClose/0xff 关闭处理和 close ack；D-008 仍负责物品内容、热栏与 StackRequest |
 | 2026-05-06 | D-008/M4 | 背包与物品核心包 smoke test | 通过 | `go test ./internal/server -count=1`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖初始 InventoryContent/MobEquipment 同步、MobEquipment 热栏切换广播、ItemStackRequest Take/Place/Swap/Drop/Destroy/MineBlock OK 响应、StackNetworkID 不一致和未支持 Consume 的 Error 响应、PlayerAuthInput 内嵌 ItemStackRequest；完整物品表/创造栏/合成/掉落实体仍待后续 |
+| 2026-05-14 | E-001/E-002/E-003/E-004/E-005/E-006/E-007/E-008 | 服务器核心生命周期 Go 测试与脚本验收 | 通过 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe ./internal/network/raknet ./internal/bootstrap -count=1`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` | 覆盖 `Server` 核心对象、20 TPS tick loop、主线程任务队列、stop 命令、session 断开清理、加入/离开广播、PlayerStore 快照钩子、MOTD 在线人数刷新、Info/Stats 指标；真实客户端断线和多人压测仍待补充 |
 
 ## 11. 后续对话交接模板
 
@@ -467,14 +468,14 @@ bds/
 
 | 字段 | 内容 |
 |---|---|
-| 当前阶段 | 阶段 C/D：本地 MCPE session 与协议核心流程 |
-| 本次完成 | D-008 背包与物品核心包：新增本地权威背包状态，初始 InventoryContent/MobEquipment 同步、热栏 MobEquipment 切换广播、InventorySlot 不一致回补，以及独立/PlayerAuthInput 内嵌 ItemStackRequest 的 Take/Place/Swap/Drop/Destroy/MineBlock OK/Error 响应 |
-| 仍在进行 | M2 登录握手闭环的真实客户端验收、M3 世界可见性与移动手感验收、M4 方块交互、完整物品表/创造栏/合成/掉落实体、M6 多人压测 |
-| 阻塞项 | 真实 Bedrock 客户端验收、在线认证验收、插件兼容策略、世界存储格式、多人压测 |
+| 当前阶段 | 阶段 E：服务器核心生命周期已进入 REVIEW；下一步可继续 M3/M4/M6 验收与玩法闭环 |
+| 本次完成 | E-001 到 E-008：新增 `internal/server.Server` 核心对象，收束 bootstrap 临时 wiring；实现 20 TPS tick loop、主线程任务队列、Stats/Info、stop 命令关闭、session 断开回调、玩家加入/离开广播、PlayerStore 快照钩子和 MOTD 在线人数刷新 |
+| 仍在进行 | M2 登录握手闭环的真实客户端验收、M3 世界可见性与移动手感验收、M4 方块交互、完整物品表/创造栏/合成/掉落实体、M6 多人压测、玩家数据磁盘格式 |
+| 阻塞项 | 真实 Bedrock 客户端验收、在线认证验收、插件兼容策略、世界/玩家存储格式、多人压测 |
 | 需要用户确认 | 是否必须兼容 PHP API3 插件；是否需要读取旧 BetterAltay 世界和玩家数据 |
-| 建议下一步 | 用 Bedrock 1.26.20/protocol 975 客户端重新验收登录、加载完成、移动、背包打开/关闭、热栏切换、聊天和命令 UI；随后推进 H/I 方块交互、完整物品表/创造栏、合成和掉落实体 |
-| 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`go.sum`、`scripts/test.ps1`、`LICENSE`、`NOTICE`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/config/config.go`、`internal/server/*`、`internal/network/mcpe/*`、`internal/network/raknet/*`、`docs/architecture.md`、`docs/protocol.md`、`docs/license-notice.md`、`docs/network-raknet.md` |
-| 已运行验证 | `go test ./...`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` |
+| 建议下一步 | 用 Bedrock 1.26.20/protocol 975 客户端重新验收登录、加载完成、移动、断线重连、背包打开/关闭、热栏切换、聊天和命令 UI；随后推进 H/I 方块交互、完整物品表/创造栏、合成和掉落实体 |
+| 关键文件 | `REWRITE_TASKBOOK.md`、`go.mod`、`go.sum`、`scripts/test.ps1`、`LICENSE`、`NOTICE`、`cmd/bds/main.go`、`internal/bootstrap/bootstrap.go`、`internal/config/config.go`、`internal/server/server.go`、`internal/server/*`、`internal/network/mcpe/*`、`internal/network/raknet/*`、`docs/architecture.md`、`docs/protocol.md`、`docs/license-notice.md`、`docs/network-raknet.md` |
+| 已运行验证 | `go test ./internal/server -count=1 -v`；`go test ./internal/network/mcpe ./internal/network/raknet ./internal/bootstrap -count=1`；`go test ./... -count=1`；`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` |
 | 未运行验证 | 尚未进行真实 Bedrock 客户端局域网列表、登录连接和多人压测；`go test -race` 因当前环境缺少 `gcc` 未运行 |
 
 ## 12. 变更记录
@@ -500,3 +501,4 @@ bds/
 | 2026-05-06 | Codex | 针对真实客户端日志补齐 D-006 后续路由：ServerBoundLoadingScreen 记录加载屏 start/end 与可选 ID，Interact 处理鼠标悬停实体、自带背包打开和离开载具位置，ContainerClose 处理自带背包/聊天混合关闭并回 close ack | D-006、D-008、M3、M4 | `go test ./internal/server -count=1`、`go test ./... -count=1`、`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；物品内容、热栏和 StackRequest 留给 D-008 |
 | 2026-05-06 | Codex | 实现 D-008 背包与物品核心包：新增本地权威背包状态，初始 InventoryContent/MobEquipment 同步、AddPlayer HeldItem、MobEquipment 热栏切换广播、InventorySlot 不一致回补，以及独立/PlayerAuthInput 内嵌 ItemStackRequest 的 Take/Place/Swap/Drop/Destroy/MineBlock OK/Error 响应和拒绝后背包回同步 | D-008、M4、I-008 | `go test ./internal/server -count=1`、`go test ./... -count=1`、`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；完整物品表/创造栏/合成/真实掉落实体仍待后续 |
 | 2026-05-10 | Codex | 实现 D-009 资源包包组：新增 `internal/resourcepack` 的 Pack/Queue 模型，`internal/server` 侧发送 ResourcePacksInfo/ResourcePackStack 并处理 ResourcePackClientResponse、ResourcePackChunkRequest 与 ResourcePacksReadyForValidation；补充空包与内存资源包测试 | D-009 | `go test ./internal/resourcepack ./internal/server -count=1`、`go test ./... -count=1` | 默认仍可空资源包；真实 Bedrock 客户端下载链路仍待验收 |
+| 2026-05-14 | Codex | 实现阶段 E 服务器核心生命周期：新增 `internal/server.Server` 核心对象并由 bootstrap 调用；实现 listener 生命周期、20 TPS tick loop、主线程任务队列、Stats/Info、崩溃诊断、stop 命令关闭、session 断开回调、玩家加入/离开广播、PlayerStore 快照钩子和 MOTD 在线人数刷新 | E-001、E-002、E-003、E-004、E-005、E-006、E-007、E-008、M6 | `go test ./internal/server -count=1 -v`、`go test ./internal/network/mcpe ./internal/network/raknet ./internal/bootstrap -count=1`、`go test ./... -count=1`、`powershell -ExecutionPolicy Bypass -File scripts\test.ps1 -RunCheck` 通过；真实客户端断线和多人压测仍待做 |

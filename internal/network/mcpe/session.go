@@ -30,6 +30,10 @@ type PacketClient interface {
 
 type ClientFactory func(PacketConn) PacketClient
 
+type DisconnectAware interface {
+	OnDisconnect(context.Context)
+}
+
 type session struct {
 	conn       net.Conn
 	codec      codec
@@ -59,6 +63,11 @@ func (session *session) Serve(ctx context.Context) error {
 		}
 	}()
 	defer close(done)
+	defer func() {
+		if client, ok := session.client.(DisconnectAware); ok {
+			client.OnDisconnect(ctx)
+		}
+	}()
 
 	buffer := make([]byte, maxDecompressedBatchBytes)
 	for {

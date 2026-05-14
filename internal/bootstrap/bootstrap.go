@@ -1,20 +1,15 @@
 package bootstrap
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"gucooing/bds/internal/config"
 	"gucooing/bds/internal/logging"
-	networkmcpe "gucooing/bds/internal/network/mcpe"
 	appserver "gucooing/bds/internal/server"
 )
 
@@ -81,69 +76,31 @@ func RunContext(ctx context.Context, stdout, stderr io.Writer, args []string) er
 		return nil
 	}
 
-	runtimeCtx, shutdown := context.WithCancel(ctx)
-	defer shutdown()
-
-	listenAddress := net.JoinHostPort(serverConfig.Address, strconv.Itoa(serverConfig.Port))
-	mcpeHandler, err := appserver.NewMCPEHandler(appserver.MCPEOptions{
-		ServerName:   serverConfig.ServerName,
-		ServerBrand:  Name,
-		GameMode:     serverConfig.GameMode,
-		MaxPlayers:   serverConfig.MaxPlayers,
-		ViewDistance: serverConfig.ViewDistance,
-		OnlineMode:   serverConfig.OnlineMode,
+	server, err := appserver.New(appserver.Options{
+		Config:       serverConfig,
 		Logger:       logger.Logger,
-		Shutdown:     shutdown,
+		ConsoleInput: os.Stdin,
+		DataPath:     options.DataPath,
+		Brand:        Name,
+		Version:      CurrentVersion.String(),
 	})
 	if err != nil {
 		return err
 	}
-	mcpeServer, err := networkmcpe.Listen(networkmcpe.Options{
-		Address:     listenAddress,
-		ServerName:  serverConfig.ServerName,
-		ServerBrand: Name,
-		GameMode:    serverConfig.GameMode,
-		MaxPlayers:  serverConfig.MaxPlayers,
-		Logger:      logger.Logger,
-		NewClient: func(conn networkmcpe.PacketConn) networkmcpe.PacketClient {
-			return appserver.NewMCPEClient(mcpeHandler, conn)
-		},
-	})
-	if err != nil {
-		return err
-	}
-	defer mcpeServer.Close()
 
-	logger.Info("mcpe listener started", "address", mcpeServer.Addr(), "online_mode", serverConfig.OnlineMode)
-	go runConsoleInput(runtimeCtx, os.Stdin, logger, mcpeHandler)
+	if err := server.Start(); err != nil {
+		return err
+	}
+	defer server.Stop()
+
+	logger.Info("mcpe listener started", "address", server.Addr(), "online_mode", serverConfig.OnlineMode)
 	logger.Info("runtime waiting for shutdown", "max_players", serverConfig.MaxPlayers, "view_distance", serverConfig.ViewDistance)
-	<-runtimeCtx.Done()
-	logger.Info("shutdown requested", "reason", runtimeCtx.Err())
+	select {
+	case <-ctx.Done():
+	case <-server.Done():
+	}
+	server.Stop()
+	server.Wait()
+	logger.Info("shutdown requested", "reason", ctx.Err())
 	return nil
-}
-
-func runConsoleInput(ctx context.Context, input io.Reader, logger *logging.Logger, handler *appserver.MCPEHandler) {
-	scanner := bufio.NewScanner(input)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		result := handler.ExecuteConsoleCommand(ctx, line)
-		for _, message := range result.Messages {
-			if result.Success {
-				logger.Info(message)
-			} else {
-				logger.Warn(message)
-			}
-		}
-	}
-	if err := scanner.Err(); err != nil && ctx.Err() == nil {
-		logger.Warn("console input stopped", "error", err)
-	}
 }

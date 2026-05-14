@@ -75,6 +75,13 @@ func (client *MCPEClient) handleSetLocalPlayerAsInitialised(_ context.Context, p
 	if err := client.spawnToInitialisedPlayers(); err != nil {
 		return err
 	}
+	_ = writePacketToClients(client.handler.spawnedPlayersExcept(client), &packet.Text{
+		TextType: packet.TextTypeTranslation,
+		Message:  "multiplayer.player.joined",
+		Parameters: []string{
+			client.login.Identity.DisplayName,
+		},
+	})
 	if client.handler.logger != nil {
 		client.handler.logger.Info("mcpe player spawned", "remote", client.conn.RemoteAddr(), "display_name", client.login.Identity.DisplayName)
 	}

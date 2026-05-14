@@ -32,6 +32,8 @@ type MCPEOptions struct {
 	ResourcePacks        []appresourcepack.Pack
 	TexturePacksRequired bool
 	Shutdown             func()
+	PlayerJoined         func(*MCPEClient)
+	PlayerLeft           func(*MCPEClient)
 }
 
 type MCPEHandler struct {
@@ -54,6 +56,8 @@ type MCPEHandler struct {
 	resourcePacks        []appresourcepack.Pack
 	texturePacksRequired bool
 	shutdown             func()
+	playerJoined         func(*MCPEClient)
+	playerLeft           func(*MCPEClient)
 }
 
 type MCPEConn interface {
@@ -77,6 +81,7 @@ const (
 	stateAwaitChunkRadius
 	stateAwaitInitialised
 	stateSpawned
+	stateDisconnected
 )
 
 type MCPEClient struct {
@@ -137,6 +142,8 @@ func NewMCPEHandler(options MCPEOptions) (*MCPEHandler, error) {
 		resourcePacks:        resourcePacks,
 		texturePacksRequired: options.TexturePacksRequired,
 		shutdown:             options.Shutdown,
+		playerJoined:         options.PlayerJoined,
+		playerLeft:           options.PlayerLeft,
 	}
 	handler.commands = newDefaultCommands(handler)
 	if _, err := handler.encryptionPrivateKey(); err != nil {
@@ -158,6 +165,9 @@ func NewMCPEClient(handler *MCPEHandler, conn MCPEConn) *MCPEClient {
 }
 
 func (client *MCPEClient) HandlePacket(ctx context.Context, pk packet.Packet) error {
+	if client.state == stateDisconnected {
+		return nil
+	}
 	err := client.packets.dispatch(ctx, pk)
 	if errors.Is(err, errUnhandledPacket) {
 		if client.handler.logger != nil {
@@ -170,6 +180,12 @@ func (client *MCPEClient) HandlePacket(ctx context.Context, pk packet.Packet) er
 
 func (client *MCPEClient) State() int {
 	return int(client.state)
+}
+
+func (client *MCPEClient) OnDisconnect(_ context.Context) {
+	if client.handler != nil {
+		client.handler.removePlayer(client)
+	}
 }
 
 func (handler *MCPEHandler) nextRuntimeID() uint64 {

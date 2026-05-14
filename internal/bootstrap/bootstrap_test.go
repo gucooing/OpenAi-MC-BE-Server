@@ -75,7 +75,7 @@ func TestRunStartsMCPEListener(t *testing.T) {
 	configPath := filepath.Join(dataPath, "server.properties")
 	configContent := strings.Join([]string{
 		"server-address=127.0.0.1",
-		"server-port=" + strconv.Itoa(freeUDPPort(t)),
+		"server-port=" + strconv.Itoa(bootstrapFreeUDPPort(t)),
 		"log-file=",
 		"color-logs=false",
 	}, "\n")
@@ -98,7 +98,7 @@ func TestRunStartsMCPEListener(t *testing.T) {
 	}
 }
 
-func freeUDPPort(t *testing.T) int {
+func bootstrapFreeUDPPort(t *testing.T) int {
 	t.Helper()
 
 	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
